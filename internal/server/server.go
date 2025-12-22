@@ -1,0 +1,107 @@
+package server
+
+import (
+	"fmt"
+	"net/http"
+	"sync"
+
+	"github.com/foxboron/attezt/internal/attest"
+	"github.com/foxboron/attezt/internal/certs"
+	ijson "github.com/foxboron/attezt/internal/json"
+	"github.com/google/go-tpm/tpm2"
+	"github.com/google/go-tpm/tpm2/transport"
+)
+
+var secret = []byte{1, 2, 3, 4, 5}
+
+type TPMAttestServer struct {
+	rwc   transport.TPMCloser
+	chain *certs.CertificateChain
+	// config *Config
+	state *sync.Map
+}
+
+func NewTPMAttestServer(rwc transport.TPMCloser, chain *certs.CertificateChain) *TPMAttestServer {
+	return &TPMAttestServer{
+		rwc:   rwc,
+		chain: chain,
+		state: new(sync.Map),
+	}
+}
+
+func (t *TPMAttestServer) attestHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("attest handler")
+	params, err := ijson.Decode[attest.Attestation](r.Body)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	// TODO: Check that we actually want this client or not.
+	// currently no validation, we sign any challenge!
+
+	rsp, err := params.CreateCredential(secret)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	rakpub, _ := tpm2.Pub(*params.AttestParams.Public)
+	fmt.Printf("Remote AKPublic: %s\n", attest.HashPub(rakpub))
+
+	t.state.Store(string(secret), &params)
+
+	if err := ijson.Encode(w, 200, rsp); err != nil {
+		fmt.Println(err)
+		fmt.Fprintf(w, "can't return challenge")
+		return
+	}
+}
+
+func (t *TPMAttestServer) secretHandler(w http.ResponseWriter, r *http.Request) {
+	req, err := ijson.Decode[*attest.SecretRequest](r.Body)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	// TODO: We should do more validation then just the lookup.
+	val, ok := t.state.Load(string(req.Secret))
+	if !ok {
+		fmt.Println(err)
+		return
+	}
+
+	state := val.(*attest.Attestation)
+	cert, err := state.AKCertificate()
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	certbytes, err := t.chain.Sign(cert.Cert(), cert.PublicKey())
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	// This is the chain. Signed certificate last.
+	sec := &attest.SecretResponse{
+		CertificateChain: [][]byte{
+			certbytes,
+			t.chain.IntermediateCertificate().Raw,
+		},
+	}
+	if err := ijson.Encode(w, 200, sec); err != nil {
+		fmt.Println(err)
+		fmt.Fprintf(w, "can't return challenge")
+		return
+	}
+}
+
+func (t *TPMAttestServer) Handlers() *http.ServeMux {
+	var mux http.ServeMux
+	mux.HandleFunc("/attest", t.attestHandler)
+	mux.HandleFunc("/secret", t.secretHandler)
+	return &mux
+}

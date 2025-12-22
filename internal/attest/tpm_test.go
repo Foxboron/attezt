@@ -1,0 +1,37 @@
+package attest
+
+import (
+	"testing"
+
+	"github.com/google/go-tpm/tpm2/transport"
+)
+
+func Test_getEKCert(t *testing.T) {
+	rwc, err := transport.OpenTPM()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name    string
+		wantErr bool
+	}{
+		{
+			name:    "get RSA",
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, gotErr := getEKCert(rwc)
+			if gotErr != nil {
+				if !tt.wantErr {
+					t.Errorf("getEKCert() failed: %v", gotErr)
+				}
+				return
+			}
+			if tt.wantErr {
+				t.Fatal("getEKCert() succeeded unexpectedly")
+			}
+		})
+	}
+}
