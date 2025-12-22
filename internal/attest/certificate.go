@@ -5,7 +5,6 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	encasn1 "encoding/asn1"
-	"os"
 	"time"
 
 	"github.com/google/go-tpm/tpm2"
@@ -65,11 +64,4 @@ func (a *AKCertificate) SetExtensions(uri string, t *TPMInfo) {
 		Critical: false,
 		Value:    by,
 	})
-	os.WriteFile("rdns", by, 0o644)
-	//
-	// var rdns pkix.RDNSequence
-	// if _, err := encasn1.Unmarshal(by, &rdns); err != nil {
-	// 	fmt.Println(err)
-	// 	panic("lol")
-	// }
 }
