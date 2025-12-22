@@ -12,6 +12,7 @@ import (
 	"github.com/google/go-tpm/tpm2/transport"
 )
 
+// TODO: We should autogenerate this. Oops
 var secret = []byte{1, 2, 3, 4, 5}
 
 type TPMAttestServer struct {
