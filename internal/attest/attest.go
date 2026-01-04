@@ -5,6 +5,7 @@ import (
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
@@ -275,10 +276,26 @@ func verifySignature(pub *tpm2.TPMTPublic, b []byte, sig *tpm2.TPMTSignature) (b
 		sh := h.New()
 		sh.Write(b)
 		return ecdsa.Verify(p, sh.Sum(nil), new(big.Int).SetBytes(eccsig.SignatureR.Buffer), new(big.Int).SetBytes(eccsig.SignatureS.Buffer)), nil
+	case *rsa.PublicKey:
+		rsasig, err := sig.Signature.RSASSA()
+		if err != nil {
+			return false, err
+		}
+		h, err := rsasig.Hash.Hash()
+		if err != nil {
+			return false, err
+		}
+		sh := h.New()
+		sh.Write(b)
+		if err := rsa.VerifyPKCS1v15(p, h, sh.Sum(nil), rsasig.Sig.Buffer); err == nil {
+			return true, nil
+		}
+		return false, err
 	default:
 		// TODO: Implement RSA
 		return false, fmt.Errorf("not supported")
 	}
+	return false, fmt.Errorf("not supported")
 }
 
 func (a *AttestationParameters) VerifyCreation(restricted bool) (bool, error) {
