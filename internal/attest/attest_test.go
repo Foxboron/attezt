@@ -50,20 +50,6 @@ func TestAttestationParameters_Verify(t *testing.T) {
 	}
 }
 
-func TestGetAKCert(t *testing.T) {
-	// rwc, err := simulator.OpenSimulator()
-	// if err != nil {
-	// 	t.Fatal(err)
-	// }
-	//
-	// a, err := attest.NewAttestationParameters(rwc)
-	// if err != nil {
-	// 	t.Fatalf("could not construct receiver type: %v", err)
-	// }
-	//
-	// fmt.Println(a.AKCertificate())
-}
-
 var oidSAN = encasn1.ObjectIdentifier{2, 5, 29, 17}
 
 var (
