@@ -16,6 +16,7 @@ func TestNewCA(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer rwc.Close()
 	handle, pub, err := attest.GetAK(rwc)
 	if err != nil {
 		t.Fatal(err)

@@ -19,6 +19,7 @@ func TestAttestationParameters_Verify(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer rwc.Close()
 	tests := []struct {
 		name    string
 		want    bool
