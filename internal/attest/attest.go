@@ -51,8 +51,8 @@ func (a *Attestation) CreateCredential(secret []byte) (*AttestationResponse, err
 		return nil, err
 	}
 	return &AttestationResponse{
-		tpm2.Marshal(tpm2.TPM2BIDObject{Buffer: id}),
-		tpm2.Marshal(tpm2.TPM2BEncryptedSecret{Buffer: secret}),
+		tpm2.TPM2BIDObject{Buffer: id},
+		tpm2.TPM2BEncryptedSecret{Buffer: secret},
 	}, nil
 }
 

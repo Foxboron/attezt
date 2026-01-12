@@ -87,7 +87,7 @@ func (a *AttestClient) GetAttest(rwc transport.TPMCloser) (any, error) {
 		return nil, err
 	}
 
-	secret, err := ap.ActivateCredential(rwc, arReq.Credential, arReq.Secret)
+	secret, err := ap.ActivateCredential(rwc, arReq.Credential.Buffer, arReq.Secret.Buffer)
 	if err != nil {
 		return nil, err
 	}
