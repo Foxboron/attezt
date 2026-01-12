@@ -148,6 +148,7 @@ func GetAK(rwc transport.TPMCloser, alg tpm2.TPMAlgID) (*tpm2.NamedHandle, *tpm2
 }
 
 func GetAKWithHandel(rwc transport.TPMCloser, handel *tpm2.NamedHandle) (*tpm2.NamedHandle, *tpm2.CreateLoadedResponse, error) {
+	// TODO: Unused
 	akRsp, err := tpm2.CreateLoaded{
 		ParentHandle: handel,
 		InPublic:     tpm2.New2BTemplate(&RSAAKTemplate),

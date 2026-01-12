@@ -20,8 +20,7 @@ import (
 )
 
 type Attestation struct {
-	TPMInfo *TPMInfo
-	// TODO: What is the proper type for this?
+	TPMInfo      *TPMInfo
 	EKCerts      [][]byte
 	EKPub        crypto.PublicKey
 	AKCert       []byte
@@ -132,7 +131,6 @@ func (a *Attestation) UnmarshalJSON(b []byte) error {
 func (a *Attestation) MarshalJSON() ([]byte, error) {
 	var ekPub []byte
 	var err error
-	fmt.Println(a.EKPub)
 	if ekPub, err = x509.MarshalPKIXPublicKey(a.EKPub); err != nil {
 		panic(fmt.Sprintf("failed marshaling public key: %v", err))
 	}
@@ -182,8 +180,7 @@ type AttestationParameters struct {
 }
 
 type attestationParameters struct {
-	Public []byte `json:"public,omitempty"`
-	// Smallstep thing, need to figur eout
+	Public                  []byte `json:"public,omitempty"`
 	UseTCSDActivationFormat bool   `json:"useTCSDActivationFormat,omitempty"`
 	CreateData              []byte `json:"createData,omitempty"`
 	CreateAttestation       []byte `json:"createAttestation,omitempty"`
