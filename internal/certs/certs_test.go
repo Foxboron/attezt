@@ -7,6 +7,7 @@ import (
 	"github.com/foxboron/attezt/internal/attest"
 	"github.com/foxboron/attezt/internal/certs"
 	keyfile "github.com/foxboron/go-tpm-keyfiles"
+	"github.com/google/go-tpm/tpm2"
 	"github.com/google/go-tpm/tpm2/transport/simulator"
 )
 
@@ -17,7 +18,7 @@ func TestNewCA(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer rwc.Close()
-	handle, pub, err := attest.GetAK(rwc)
+	handle, pub, err := attest.GetAK(rwc, tpm2.TPMAlgECC)
 	if err != nil {
 		t.Fatal(err)
 	}

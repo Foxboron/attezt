@@ -56,15 +56,15 @@ func (a *Attestation) CreateCredential(secret []byte) (*AttestationResponse, err
 	}, nil
 }
 
-func (a *Attestation) ActivateCredential(rwc transport.TPMCloser, cred, secret []byte) ([]byte, error) {
+func (a *Attestation) ActivateCredentialWithAlg(rwc transport.TPMCloser, alg tpm2.TPMAlgID, cred tpm2.TPM2BIDObject, secret tpm2.TPM2BEncryptedSecret) ([]byte, error) {
 	// TODO: We should check that we are attesting ak and EK as we expect
-	akHandle, _, err := GetAK(rwc)
+	akHandle, _, err := GetAK(rwc, alg)
 	if err != nil {
 		return nil, err
 	}
 	defer keyfile.FlushHandle(rwc, akHandle)
 
-	ekHandle, _, err := GetEK(rwc)
+	ekHandle, _, err := GetEK(rwc, alg)
 	if err != nil {
 		return nil, err
 	}
@@ -77,13 +77,17 @@ func (a *Attestation) ActivateCredential(rwc transport.TPMCloser, cred, secret [
 			Name:   ekHandle.Name,
 			Auth:   tpm2.Policy(tpm2.TPMAlgSHA256, 16, ekPolicy),
 		},
-		CredentialBlob: tpm2.TPM2BIDObject{Buffer: cred},
-		Secret:         tpm2.TPM2BEncryptedSecret{Buffer: secret},
+		CredentialBlob: cred,
+		Secret:         secret,
 	}.Execute(rwc)
 	if err != nil {
 		return nil, fmt.Errorf("failed credential activation: %v", err)
 	}
 	return ac.CertInfo.Buffer, nil
+}
+
+func (a *Attestation) ActivateCredential(rwc transport.TPMCloser, cred tpm2.TPM2BIDObject, secret tpm2.TPM2BEncryptedSecret) ([]byte, error) {
+	return a.ActivateCredentialWithAlg(rwc, tpm2.TPMAlgRSA, cred, secret)
 }
 
 func HashPub(b crypto.PublicKey) string {
@@ -140,13 +144,17 @@ func (a *Attestation) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func NewAttestation(rwc transport.TPMCloser) (*Attestation, error) {
-	ap, err := NewAttestationParameters(rwc)
+func NewAttestation(rwc transport.TPMCloser, alg tpm2.TPMAlgID) (*Attestation, error) {
+	return NewAttestationWithAlg(rwc, tpm2.TPMAlgRSA)
+}
+
+func NewAttestationWithAlg(rwc transport.TPMCloser, alg tpm2.TPMAlgID) (*Attestation, error) {
+	ap, err := NewAttestationParametersWithAlg(rwc, alg)
 	if err != nil {
 		return nil, fmt.Errorf("failed getting attestation parameters: %w", err)
 	}
 
-	cert, err := getEKCert(rwc)
+	cert, err := getEKCert(rwc, alg)
 	if err != nil {
 		return nil, fmt.Errorf("failed getting endorsement key certificate: %w", err)
 	}
@@ -182,8 +190,8 @@ type attestationParameters struct {
 	CreateSignature         []byte `json:"createSignature,omitempty"`
 }
 
-func NewAttestationParameters(rwc transport.TPMCloser) (*AttestationParameters, error) {
-	akHandle, AKrsp, err := GetAK(rwc)
+func NewAttestationParametersWithAlg(rwc transport.TPMCloser, alg tpm2.TPMAlgID) (*AttestationParameters, error) {
+	akHandle, AKrsp, err := GetAK(rwc, alg)
 	if err != nil {
 		return nil, err
 	}
@@ -256,6 +264,10 @@ func NewAttestationParameters(rwc transport.TPMCloser) (*AttestationParameters, 
 		CreateAttestation: ca,
 		CreateSignature:   tpm2.Marshal(ccRsp.Signature),
 	}, nil
+}
+
+func NewAttestationParameters(rwc transport.TPMCloser) (*AttestationParameters, error) {
+	return NewAttestationParametersWithAlg(rwc, tpm2.TPMAlgRSA)
 }
 
 func verifySignature(pub *tpm2.TPMTPublic, b []byte, sig *tpm2.TPMTSignature) (bool, error) {

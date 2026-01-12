@@ -3,6 +3,7 @@ package attest
 import (
 	"testing"
 
+	"github.com/google/go-tpm/tpm2"
 	"github.com/google/go-tpm/tpm2/transport/linuxtpm"
 )
 
@@ -23,7 +24,7 @@ func Test_getEKCert(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, gotErr := getEKCert(rwc)
+			_, gotErr := getEKCert(rwc, tpm2.TPMAlgRSA)
 			if gotErr != nil {
 				if !tt.wantErr {
 					t.Errorf("getEKCert() failed: %v", gotErr)

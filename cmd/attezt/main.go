@@ -14,6 +14,7 @@ import (
 	"github.com/foxboron/attezt/internal/certs"
 	ijson "github.com/foxboron/attezt/internal/json"
 	ssim "github.com/google/go-tpm-tools/simulator"
+	"github.com/google/go-tpm/tpm2"
 	"github.com/google/go-tpm/tpm2/transport"
 	"github.com/google/go-tpm/tpmutil"
 )
@@ -64,7 +65,7 @@ func (a *AttestClient) GetSecretURL() string {
 }
 
 func (a *AttestClient) GetAttest(rwc transport.TPMCloser) (any, error) {
-	ap, err := attest.NewAttestation(rwc)
+	ap, err := attest.NewAttestation(rwc, tpm2.TPMAlgRSA)
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +88,7 @@ func (a *AttestClient) GetAttest(rwc transport.TPMCloser) (any, error) {
 		return nil, err
 	}
 
-	secret, err := ap.ActivateCredential(rwc, arReq.Credential.Buffer, arReq.Secret.Buffer)
+	secret, err := ap.ActivateCredential(rwc, arReq.Credential, arReq.Secret)
 	if err != nil {
 		return nil, err
 	}

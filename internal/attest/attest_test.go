@@ -10,6 +10,7 @@ import (
 	"golang.org/x/crypto/cryptobyte/asn1"
 
 	"github.com/foxboron/attezt/internal/attest"
+	"github.com/google/go-tpm/tpm2"
 	"github.com/google/go-tpm/tpm2/transport/simulator"
 	"golang.org/x/crypto/cryptobyte"
 )
@@ -29,7 +30,7 @@ func TestAttestationParameters_Verify(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			a, err := attest.NewAttestationParameters(rwc)
+			a, err := attest.NewAttestationParametersWithAlg(rwc, tpm2.TPMAlgECC)
 			if err != nil {
 				t.Fatalf("could not construct receiver type: %v", err)
 			}

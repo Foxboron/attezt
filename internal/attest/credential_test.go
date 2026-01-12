@@ -7,21 +7,22 @@ import (
 
 	keyfile "github.com/foxboron/go-tpm-keyfiles"
 	"github.com/google/go-tpm/tpm2"
-	"github.com/google/go-tpm/tpm2/transport"
+	"github.com/google/go-tpm/tpm2/transport/linuxtpm"
 )
 
 func TestEncap(t *testing.T) {
-	rwc, err := transport.OpenTPM()
+	rwc, err := linuxtpm.Open("/dev/tpmrm0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rwc.Close()
+
+	ap, err := NewAttestationParametersWithAlg(rwc, tpm2.TPMAlgECC)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	ap, err := NewAttestationParameters(rwc)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	cert, err := getEKCert(rwc)
+	cert, err := getEKCert(rwc, tpm2.TPMAlgECC)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,13 +40,13 @@ func TestEncap(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	akHandle, _, err := GetAK(rwc)
+	akHandle, _, err := GetAK(rwc, tpm2.TPMAlgECC)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer keyfile.FlushHandle(rwc, akHandle)
 
-	ekHandle, _, err := GetEK(rwc)
+	ekHandle, _, err := GetEK(rwc, tpm2.TPMAlgECC)
 	if err != nil {
 		t.Fatal(err)
 	}

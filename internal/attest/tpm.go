@@ -50,7 +50,7 @@ var (
 			},
 		),
 	}
-	ECCSAK_H2_Template = tpm2.TPMTPublic{
+	ECCAKTemplate = tpm2.TPMTPublic{
 		Type:    tpm2.TPMAlgECC,
 		NameAlg: tpm2.TPMAlgSHA256,
 		ObjectAttributes: tpm2.TPMAObject{
@@ -126,10 +126,17 @@ var (
 	}
 )
 
-func GetAK(rwc transport.TPMCloser) (*tpm2.NamedHandle, *tpm2.CreatePrimaryResponse, error) {
+func GetAK(rwc transport.TPMCloser, alg tpm2.TPMAlgID) (*tpm2.NamedHandle, *tpm2.CreatePrimaryResponse, error) {
+	var tpublic tpm2.TPMTPublic
+	switch alg {
+	case tpm2.TPMAlgECC:
+		tpublic = ECCAKTemplate
+	case tpm2.TPMAlgRSA:
+		tpublic = RSAAKTemplate
+	}
 	akRsp, err := tpm2.CreatePrimary{
 		PrimaryHandle: tpm2.TPMRHEndorsement,
-		InPublic:      tpm2.New2B(RSAAKTemplate),
+		InPublic:      tpm2.New2B(tpublic),
 	}.Execute(rwc)
 	if err != nil {
 		return nil, nil, err
@@ -154,11 +161,17 @@ func GetAKWithHandel(rwc transport.TPMCloser, handel *tpm2.NamedHandle) (*tpm2.N
 	}, akRsp, nil
 }
 
-func GetEK(rwc transport.TPMCloser) (*tpm2.NamedHandle, *tpm2.TPMTPublic, error) {
+func GetEK(rwc transport.TPMCloser, alg tpm2.TPMAlgID) (*tpm2.NamedHandle, *tpm2.TPMTPublic, error) {
+	var template tpm2.TPMTPublic
+	switch alg {
+	case tpm2.TPMAlgECC:
+		template = tpm2.ECCEKTemplate
+	case tpm2.TPMAlgRSA:
+		template = tpm2.RSAEKTemplate
+	}
 	createRsp, err := tpm2.CreatePrimary{
 		PrimaryHandle: tpm2.TPMRHEndorsement,
-		InPublic:      tpm2.New2B(tpm2.RSAEKTemplate),
-		// InPublic: tpm2.New2B(tpm2.ECCEKTemplate),
+		InPublic:      tpm2.New2B(template),
 	}.Execute(rwc)
 	if err != nil {
 		return nil, nil, err
@@ -256,14 +269,19 @@ func GetEKHandle(rwc transport.TPMCloser) (crypto.PublicKey, error) {
 	return tpm2.Pub(*pub)
 }
 
-func getEKCert(rwc transport.TPMCloser) (*x509.Certificate, error) {
-	// TODO: Add ECC as well
+func getEKCert(rwc transport.TPMCloser, alg tpm2.TPMAlgID) (*x509.Certificate, error) {
 	// TODO: Smallstep does a lookup for all endorsement certs
 	// We should consider the same, but only pass cert from NV until further notice
 	// But check this if we somehow fail any checks
-	// ECC
-	// bb, err := nvReadEX(rwc, tpm2.TPMHandle(0x01C0000A))
-	bb, err := nvReadEX(rwc, tpm2.TPMHandle(0x01C00002))
+	var handle tpm2.TPMHandle
+	switch alg {
+	case tpm2.TPMAlgECC:
+		handle = tpm2.TPMHandle(0x01C0000A)
+	case tpm2.TPMAlgRSA:
+		handle = tpm2.TPMHandle(0x01C00002)
+	}
+	bb, err := nvReadEX(rwc, handle)
+	// bb, err := nvReadEX(rwc, tpm2.TPMHandle(0x01C00002))
 	if err != nil {
 		return nil, err
 	}

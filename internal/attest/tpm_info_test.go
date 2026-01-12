@@ -10,10 +10,10 @@ import (
 
 func TestNewTPMInfo(t *testing.T) {
 	rwc, err := simulator.OpenSimulator()
-	defer rwc.Close()
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer rwc.Close()
 	tpminfo, err := attest.NewTPMInfo(rwc)
 	if err != nil {
 		t.Fatal(err)
