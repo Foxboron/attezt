@@ -6,3 +6,11 @@
 # Attestation format/smallstep comments
 - SAN fields are wrong? Should be UTF8String, but is PrintableString.
 - Should pass EK TPMTPublic, not the serialzied crypto.PublicKey
+
+
+
+# UI
+
+SSH protocl?
+
+attezt enroll

@@ -1,0 +1,11 @@
+# Ensure we can create small CA
+attezt -create-certs
+exists root_ca.crt
+exists root_ca.key
+exists intermediate_ca.crt
+exists intermediate_ca.key
+
+# Test certificate mint
+atteztd &atteztd&
+attezt
+exists device_certificate.pem
