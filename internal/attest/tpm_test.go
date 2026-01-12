@@ -3,14 +3,15 @@ package attest
 import (
 	"testing"
 
-	"github.com/google/go-tpm/tpm2/transport"
+	"github.com/google/go-tpm/tpm2/transport/linuxtpm"
 )
 
 func Test_getEKCert(t *testing.T) {
-	rwc, err := transport.OpenTPM()
+	rwc, err := linuxtpm.Open("/dev/tpmrm0")
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer rwc.Close()
 	tests := []struct {
 		name    string
 		wantErr bool

@@ -292,10 +292,8 @@ func verifySignature(pub *tpm2.TPMTPublic, b []byte, sig *tpm2.TPMTSignature) (b
 		}
 		return false, err
 	default:
-		// TODO: Implement RSA
 		return false, fmt.Errorf("not supported")
 	}
-	return false, fmt.Errorf("not supported")
 }
 
 func (a *AttestationParameters) VerifyCreation(restricted bool) (bool, error) {
