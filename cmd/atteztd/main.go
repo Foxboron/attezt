@@ -1,4 +1,4 @@
-package atteztd
+package main
 
 import (
 	atteztd "github.com/foxboron/attezt/cmd/atteztd/cmd"
