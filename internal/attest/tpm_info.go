@@ -41,7 +41,7 @@ func (t *TPMInfo) MarshalASN() []byte {
 	}
 	b.AddASN1(asn1.SEQUENCE, func(b *cryptobyte.Builder) {
 		add(b, oidTPMManufacturer, t.Manufacturer)
-		add(b, oidTPMModel, t.Model)
+		add(b, oidTPMModel, sanitizeString(t.Model))
 		add(b, oidTPMVersion, t.FirmwareVersion)
 	})
 	return b.BytesOrPanic()
