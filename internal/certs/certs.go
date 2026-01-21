@@ -173,9 +173,9 @@ func ReadChainFromDir(_ string) (*CertificateChain, error) {
 	if err != nil {
 		return nil, fmt.Errorf("railed reading root_ca.key: %v", err)
 	}
-	rootcrt, err := os.ReadFile("root_ca.crt")
+	rootcrt, err := os.ReadFile("root_ca.pem")
 	if err != nil {
-		return nil, fmt.Errorf("railed reading root_ca.crt: %v", err)
+		return nil, fmt.Errorf("railed reading root_ca.pem: %v", err)
 	}
 	rootCert, err := ReadCertificates(rootKey, rootcrt)
 	if err != nil {
@@ -185,9 +185,9 @@ func ReadChainFromDir(_ string) (*CertificateChain, error) {
 	if err != nil {
 		return nil, fmt.Errorf("railed reading intermediate_ca.key: %v", err)
 	}
-	intercrt, err := os.ReadFile("intermediate_ca.crt")
+	intercrt, err := os.ReadFile("intermediate_ca.pem")
 	if err != nil {
-		return nil, fmt.Errorf("railed reading intermediate_ca.crt: %v", err)
+		return nil, fmt.Errorf("railed reading intermediate_ca.pem: %v", err)
 	}
 	interCert, err := ReadCertificates(interkey, intercrt)
 	if err != nil {

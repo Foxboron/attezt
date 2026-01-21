@@ -146,17 +146,16 @@ func Main() {
 		chain := certs.NewCA()
 		rootKey, _ := os.OpenFile("root_ca.key", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 		defer rootKey.Close()
-		rootCrt, _ := os.OpenFile("root_ca.crt", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+		rootCrt, _ := os.OpenFile("root_ca.pem", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 		defer rootCrt.Close()
 		interKey, _ := os.OpenFile("intermediate_ca.key", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 		defer interKey.Close()
-		interCrt, _ := os.OpenFile("intermediate_ca.crt", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+		interCrt, _ := os.OpenFile("intermediate_ca.pem", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 		defer interCrt.Close()
 		chain.SaveKeys(rootKey, interKey)
 		chain.SaveCertificates(rootCrt, interCrt)
 		os.Exit(0)
 	}
-
 	rwc, err := linuxtpm.Open("/dev/tpmrm0")
 	if err != nil {
 		log.Fatal(err)
