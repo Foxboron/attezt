@@ -9,22 +9,19 @@ import (
 	"github.com/foxboron/attezt/internal/certs"
 	ijson "github.com/foxboron/attezt/internal/json"
 	"github.com/google/go-tpm/tpm2"
-	"github.com/google/go-tpm/tpm2/transport"
 )
 
 // TODO: We should autogenerate this. Oops
 var secret = []byte{1, 2, 3, 4, 5}
 
 type TPMAttestServer struct {
-	rwc   transport.TPMCloser
 	chain *certs.CertificateChain
 	// config *Config
 	state *sync.Map
 }
 
-func NewTPMAttestServer(rwc transport.TPMCloser, chain *certs.CertificateChain) *TPMAttestServer {
+func NewTPMAttestServer(chain *certs.CertificateChain) *TPMAttestServer {
 	return &TPMAttestServer{
-		rwc:   rwc,
 		chain: chain,
 		state: new(sync.Map),
 	}

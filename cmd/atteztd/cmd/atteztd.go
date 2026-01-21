@@ -11,18 +11,16 @@ import (
 
 	"github.com/foxboron/attezt/internal/certs"
 	"github.com/foxboron/attezt/internal/server"
-	"github.com/google/go-tpm/tpm2/transport"
-	"github.com/google/go-tpm/tpm2/transport/linuxtpm"
 )
 
 const usage = `Usage:`
 
-func run(ctx context.Context, rwc transport.TPMCloser) error {
+func run(ctx context.Context) error {
 	chain, err := certs.ReadChainFromDir(".")
 	if err != nil {
 		return fmt.Errorf("failed reading certs: %v", err)
 	}
-	as := server.NewTPMAttestServer(rwc, chain)
+	as := server.NewTPMAttestServer(chain)
 
 	srv := &http.Server{
 		Addr:    ":8080",
@@ -55,13 +53,7 @@ func Main() {
 	}
 
 	ctx := context.Background()
-	rwc, err := linuxtpm.Open("/dev/tpmrm0")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer rwc.Close()
-
-	if err := run(ctx, rwc); err != nil {
+	if err := run(ctx); err != nil {
 		fmt.Fprintf(os.Stderr, "%s\n", err)
 		os.Exit(1)
 	}
