@@ -1,0 +1,33 @@
+FROM golang:alpine AS builder
+
+WORKDIR /src
+COPY go.mod go.sum .
+RUN go mod download
+COPY . .
+
+RUN go build -o . ./cmd/...
+
+FROM alpine
+
+ENV ATTEZT="/attezt"
+ENV ATTEZTPATH="/attezt"
+ARG PUID=1000
+ARG PGID=1000
+
+RUN apk update \
+        && apk upgrade \
+        && apk add --no-cache bash curl tzdata jq \
+        && addgroup -g ${PGID} attezt \
+        && adduser -h ${ATTEZTPATH} -D -u ${PUID} -G attezt attezt \
+        && ls / \ 
+        && chown attezt: /attezt
+
+COPY --from=builder /src/attezt "/usr/local/bin/attezt"
+COPY --from=builder /src/atteztd "/usr/local/bin/atteztd"
+
+USER attezt
+WORKDIR /attezt
+
+VOLUME ["/attezt"]
+
+CMD [ "/bin/bash" ]
