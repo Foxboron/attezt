@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/pem"
 	"fmt"
 	"net/http"
 	"sync"
@@ -97,9 +98,23 @@ func (t *TPMAttestServer) secretHandler(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
+func (t *TPMAttestServer) serveRootCertificate(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/x-pem-file")
+	w.WriteHeader(200)
+	cert := t.chain.RootCertificate()
+	if err := pem.Encode(w, &pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: cert.Raw,
+	}); err != nil {
+		fmt.Println(err)
+		fmt.Fprintf(w, "can't return root certificate")
+	}
+}
+
 func (t *TPMAttestServer) Handlers() *http.ServeMux {
 	var mux http.ServeMux
 	mux.HandleFunc("/attest", t.attestHandler)
 	mux.HandleFunc("/secret", t.secretHandler)
+	mux.HandleFunc("/root.pem", t.serveRootCertificate)
 	return &mux
 }

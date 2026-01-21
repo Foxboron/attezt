@@ -229,7 +229,7 @@ func (c *CertificateChain) IntermediateCertificate() *x509.Certificate {
 	return c.intermediate.cert
 }
 
-func (c *CertificateChain) NewRootCertificate() *x509.Certificate {
+func (c *CertificateChain) RootCertificate() *x509.Certificate {
 	return c.root.cert
 }
 
