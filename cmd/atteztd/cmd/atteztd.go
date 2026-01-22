@@ -10,6 +10,7 @@ import (
 	"os/signal"
 
 	"github.com/foxboron/attezt/internal/certs"
+	"github.com/foxboron/attezt/internal/inventory/sqlite"
 	"github.com/foxboron/attezt/internal/server"
 )
 
@@ -20,7 +21,7 @@ func run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed reading certs: %v", err)
 	}
-	as := server.NewTPMAttestServer(chain)
+	as := server.NewTPMAttestServer(chain, sqlite.NewSqlite())
 
 	srv := &http.Server{
 		Addr:    ":8080",

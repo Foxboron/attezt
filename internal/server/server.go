@@ -8,6 +8,7 @@ import (
 
 	"github.com/foxboron/attezt/internal/attest"
 	"github.com/foxboron/attezt/internal/certs"
+	"github.com/foxboron/attezt/internal/inventory"
 	ijson "github.com/foxboron/attezt/internal/json"
 	"github.com/google/go-tpm/tpm2"
 )
@@ -18,18 +19,19 @@ var secret = []byte{1, 2, 3, 4, 5}
 type TPMAttestServer struct {
 	chain *certs.CertificateChain
 	// config *Config
-	state *sync.Map
+	state     *sync.Map
+	inventory inventory.Inventory
 }
 
-func NewTPMAttestServer(chain *certs.CertificateChain) *TPMAttestServer {
+func NewTPMAttestServer(chain *certs.CertificateChain, inventory inventory.Inventory) *TPMAttestServer {
 	return &TPMAttestServer{
-		chain: chain,
-		state: new(sync.Map),
+		chain:     chain,
+		state:     new(sync.Map),
+		inventory: inventory,
 	}
 }
 
 func (t *TPMAttestServer) attestHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("attest handler")
 	params, err := ijson.Decode[attest.Attestation](r.Body)
 	if err != nil {
 		fmt.Println(err)
@@ -41,6 +43,16 @@ func (t *TPMAttestServer) attestHandler(w http.ResponseWriter, r *http.Request) 
 		if err != nil {
 			fmt.Println(err)
 		}
+		fmt.Fprintf(w, "attestation verification failed")
+		return
+	}
+
+	ok, err = t.inventory.Lookup(&params)
+	if !ok {
+		if err != nil {
+			fmt.Println(err)
+		}
+		// We did not find the device in the inventory
 		fmt.Fprintf(w, "attestation verification failed")
 		return
 	}
