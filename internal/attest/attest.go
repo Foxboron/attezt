@@ -371,10 +371,7 @@ func (a *AttestationParameters) Verify() (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("failed AK validation: %v", err)
 	}
-	if !ok {
-		return false, nil
-	}
-	return true, nil
+	return ok, err
 }
 
 func (a *AttestationParameters) ToJSON() *attestationParameters {
