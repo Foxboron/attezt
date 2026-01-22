@@ -19,6 +19,17 @@ This entire project is a WIP, unsure how feature complete it will be.
 2025/12/22 23:13:31 HTTP server listening on :8080
 ```
 
+Add the provider into `step-ca`.
+
+```
+λ ~ » curl -O http://127.0.0.1:8080/root.pem
+λ ~ » step ca provisioner add acme-da \
+   --type ACME \
+   --challenge device-attest-01 \
+   --attestation-format tpm \
+   --attestation-roots ./root.pem
+```
+
 To use this service with `step ca certificate` you can run something similar to the below thing.
 
 ```
