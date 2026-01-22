@@ -36,8 +36,14 @@ func (t *TPMAttestServer) attestHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// TODO: Check that we actually want this client or not.
-	// currently no validation, we sign any challenge!
+	ok, err := params.Verify()
+	if !ok {
+		if err != nil {
+			fmt.Println(err)
+		}
+		fmt.Fprintf(w, "attestation verification failed")
+		return
+	}
 
 	rsp, err := params.CreateCredential(secret)
 	if err != nil {

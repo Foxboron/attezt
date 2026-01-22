@@ -44,7 +44,7 @@ func TestAttestationParameters_Verify(t *testing.T) {
 			if tt.wantErr {
 				t.Fatal("Verify() succeeded unexpectedly")
 			}
-			if got == tt.want {
+			if got != tt.want {
 				t.Errorf("Verify() = %v, want %v", got, tt.want)
 			}
 		})

@@ -142,6 +142,12 @@ func (a *Attestation) MarshalJSON() ([]byte, error) {
 	})
 }
 
+// Verify attestation
+func (a *Attestation) Verify() (bool, error) {
+	// TODO: Quotes
+	return a.AttestParams.Verify()
+}
+
 func NewAttestation(rwc transport.TPMCloser, alg tpm2.TPMAlgID) (*Attestation, error) {
 	return NewAttestationWithAlg(rwc, tpm2.TPMAlgRSA)
 }
@@ -357,8 +363,7 @@ func (a *AttestationParameters) VerifyCreation(restricted bool) (bool, error) {
 		return false, err
 	}
 
-	// We omit the length variable from CreateAttestation marshal
-	return verifySignature(a.Public, tpm2.Marshal(a.CreateAttestation)[2:], sig)
+	return verifySignature(a.Public, tpm2.Marshal(a.CreateAttestation), sig)
 }
 
 func (a *AttestationParameters) Verify() (bool, error) {
