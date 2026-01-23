@@ -180,7 +180,7 @@ func NewAttestationWithAlg(rwc transport.TPMCloser, alg tpm2.TPMAlgID) (*Attesta
 
 type AttestationParameters struct {
 	Public            *tpm2.TPMTPublic
-	CreateData        []byte
+	CreateData        *tpm2.TPMSCreationData
 	CreateAttestation *tpm2.TPMSAttest
 	CreateSignature   []byte
 }
@@ -260,10 +260,14 @@ func NewAttestationParametersWithAlg(rwc transport.TPMCloser, alg tpm2.TPMAlgID)
 	if err != nil {
 		return nil, err
 	}
+	creationData, err := AKrsp.CreationData.Contents()
+	if err != nil {
+		return nil, err
+	}
 
 	return &AttestationParameters{
 		Public:            akpub,
-		CreateData:        tpm2.Marshal(AKrsp.CreationData),
+		CreateData:        creationData,
 		CreateAttestation: ca,
 		CreateSignature:   tpm2.Marshal(ccRsp.Signature),
 	}, nil
@@ -323,7 +327,7 @@ func (a *AttestationParameters) VerifyCreation(restricted bool) (bool, error) {
 	}
 	hh := h.New()
 	// Strip length prefix as we use tpm2.Marshal
-	hh.Write(a.CreateData[2:])
+	hh.Write(tpm2.Marshal(a.CreateData))
 	creation, err := attest.Attested.Creation()
 	if err != nil {
 		return false, err
@@ -378,7 +382,7 @@ func (a *AttestationParameters) ToJSON() *attestationParameters {
 	return &attestationParameters{
 		Public:                  tpm2.Marshal(a.Public),
 		UseTCSDActivationFormat: false,
-		CreateData:              a.CreateData,
+		CreateData:              tpm2.Marshal(a.CreateData),
 		CreateAttestation:       tpm2.Marshal(a.CreateAttestation),
 		CreateSignature:         a.CreateSignature,
 	}
@@ -400,13 +404,13 @@ func (a *AttestationParameters) UnmarshalJSON(b []byte) error {
 		return fmt.Errorf("tpm2battest: %v", err)
 	}
 
-	// attest, err := attest2b.Contents()
-	// if err != nil {
-	// 	return fmt.Errorf("attest.contents: %v", err)
-	// }
+	create2b, err := tpm2.Unmarshal[tpm2.TPMSCreationData](obj.CreateData)
+	if err != nil {
+		return fmt.Errorf("tpm2battest: %v", err)
+	}
 
 	a.Public = pub
-	a.CreateData = obj.CreateData
+	a.CreateData = create2b
 	a.CreateAttestation = attest2b
 	a.CreateSignature = obj.CreateSignature
 	return nil
