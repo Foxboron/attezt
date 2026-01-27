@@ -22,6 +22,7 @@ import (
 	"github.com/google/go-tpm/tpmutil"
 )
 
+// Hardcoded to ALGRSA
 var TPMALG = tpm2.TPMAlgRSA
 
 // TPM represents a connection to a TPM simulator.
@@ -137,12 +138,75 @@ func (a *AttestClient) GetAttest(rwc transport.TPMCloser) ([]*x509.Certificate, 
 	return a.GetAttestWithAlg(rwc, tpm2.TPMAlgRSA)
 }
 
-var mkKeys = flag.Bool("create-certs", false, "creater certificates")
+// ca flags
+var (
+	certificateCmd = flag.NewFlagSet("certificate", flag.ExitOnError)
+)
 
-func Main() {
-	flag.Parse()
+func CertificateMain(args []string) {
+	certificateCmd.Usage = func() {
+		fmt.Printf(`Usage:
+	ak	Request an Attestation Key (AK)
+`)
+	}
+	if len(args) == 0 {
+		certificateCmd.Usage()
+		os.Exit(0)
+	}
+	certificateCmd.Parse(args)
+	switch args[0] {
+	case "ak":
+		log.Println("Requesting an attestation key...")
 
-	if *mkKeys {
+		rwc, err := linuxtpm.Open("/dev/tpmrm0")
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer rwc.Close()
+
+		c := NewClient("http://127.0.0.1:8080")
+		certs, err := c.GetAttestWithAlg(rwc, TPMALG)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		file, err := os.Create("device_certificate.pem")
+		if err != nil {
+			log.Fatalf("failed writing cert chain: %v", err)
+		}
+		defer file.Close()
+
+		for _, cert := range certs {
+			if err := pem.Encode(file, &pem.Block{
+				Type:  "CERTIFICATE",
+				Bytes: cert.Raw,
+			}); err != nil {
+				log.Fatalf("failed writing cert")
+			}
+		}
+		os.Exit(0)
+	}
+}
+
+// ca flags
+var (
+	caCmd = flag.NewFlagSet("ca", flag.ExitOnError)
+)
+
+func CAMain(args []string) {
+	caCmd.Usage = func() {
+		fmt.Printf(`Usage:
+	create	Create an CA certificate chain
+`)
+	}
+	if len(args) == 0 {
+		caCmd.Usage()
+		os.Exit(0)
+	}
+	caCmd.Parse(args)
+	switch args[0] {
+	case "create":
+		log.Println("Creating certificate authority certificates...")
 		chain := certs.NewCA()
 		rootKey, _ := os.OpenFile("root_ca.key", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 		defer rootKey.Close()
@@ -156,30 +220,32 @@ func Main() {
 		chain.SaveCertificates(rootCrt, interCrt)
 		os.Exit(0)
 	}
-	rwc, err := linuxtpm.Open("/dev/tpmrm0")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer rwc.Close()
+}
 
-	c := NewClient("http://127.0.0.1:8080")
-	certs, err := c.GetAttestWithAlg(rwc, TPMALG)
-	if err != nil {
-		log.Fatal(err)
+// Main flags
+var (
+	rootCmd = flag.NewFlagSet("attezt", flag.ExitOnError)
+)
+
+func Main() {
+	rootCmd.Usage = func() {
+		fmt.Printf(`Usage:
+	ca		Manage the certificate authority
+	certificate	Manage device certificates
+`)
+	}
+	rootCmd.Parse(os.Args[1:])
+	if len(os.Args) < 2 {
+		rootCmd.Usage()
+		os.Exit(0)
 	}
 
-	file, err := os.Create("device_certificate.pem")
-	if err != nil {
-		log.Fatalf("failed writing cert chain: %v", err)
-	}
-	defer file.Close()
-
-	for _, cert := range certs {
-		if err := pem.Encode(file, &pem.Block{
-			Type:  "CERTIFICATE",
-			Bytes: cert.Raw,
-		}); err != nil {
-			log.Fatalf("failed writing cert")
-		}
+	switch os.Args[1] {
+	case "ca":
+		CAMain(os.Args[2:])
+	case "certificate":
+		CertificateMain(os.Args[2:])
+	default:
+		rootCmd.Usage()
 	}
 }

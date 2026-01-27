@@ -1,5 +1,5 @@
 # Ensure we can create small CA
-attezt -create-certs
+attezt ca create
 exists root_ca.pem
 exists root_ca.key
 exists intermediate_ca.pem
@@ -8,5 +8,5 @@ exists intermediate_ca.key
 # Test certificate mint
 atteztd &atteztd&
 enrollekcert
-attezt
+attezt certificate ak
 exists device_certificate.pem
