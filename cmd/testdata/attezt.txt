@@ -7,5 +7,6 @@ exists intermediate_ca.key
 
 # Test certificate mint
 atteztd &atteztd&
+enrollekcert
 attezt
 exists device_certificate.pem

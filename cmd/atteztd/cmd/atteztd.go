@@ -61,7 +61,11 @@ func Main() {
 
 	backend, err := inventory.GetBackend(*backend)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "%s\n", err)
+		log.Fatal(err)
+	}
+
+	if err := backend.Init(nil); err != nil {
+		log.Fatal(err)
 	}
 
 	ctx := context.Background()

@@ -8,9 +8,10 @@ import (
 )
 
 type Inventory interface {
-	Lookup(*attest.Attestation) (bool, error)
-	Enroll() error
-	Remove() error
+	Lookup(attestation *attest.Attestation) (bool, error)
+	Init(config map[string]any) error
+	Enroll(data map[string]any) error
+	Remove(data map[string]any) error
 }
 
 var Inventories = map[string]Inventory{

@@ -89,17 +89,21 @@ func (a *Attestation) ActivateCredential(rwc transport.TPMCloser, cred tpm2.TPM2
 	return a.ActivateCredentialWithAlg(rwc, tpm2.TPMAlgRSA, cred, secret)
 }
 
-func HashPub(b crypto.PublicKey) string {
+func HashPub(b crypto.PublicKey) []byte {
 	key, err := x509.MarshalPKIXPublicKey(b)
 	if err != nil {
 		panic("Attestation.ekuri: not a valid ekpub")
 	}
-	hash := sha256.Sum256(key)
-	return "urn:ek:sha256:" + base64.StdEncoding.EncodeToString(hash[:])
+	h := sha256.Sum256(key)
+	return h[:]
 }
 
 func (a *Attestation) ekuri() string {
-	return HashPub(a.EKPub)
+	return "urn:ek:sha256:" + base64.StdEncoding.EncodeToString(HashPub(a.EKPub))
+}
+
+func (a *Attestation) EKPubHash() string {
+	return fmt.Sprintf("%x", HashPub(a.EKPub))
 }
 
 func (a *Attestation) AKCertificate() (*AKCertificate, error) {
@@ -148,7 +152,7 @@ func (a *Attestation) Verify() (bool, error) {
 	return a.AttestParams.Verify()
 }
 
-func NewAttestation(rwc transport.TPMCloser, alg tpm2.TPMAlgID) (*Attestation, error) {
+func NewAttestation(rwc transport.TPMCloser) (*Attestation, error) {
 	return NewAttestationWithAlg(rwc, tpm2.TPMAlgRSA)
 }
 
