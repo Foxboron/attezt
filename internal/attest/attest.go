@@ -14,7 +14,6 @@ import (
 	"math/big"
 
 	keyfile "github.com/foxboron/go-tpm-keyfiles"
-	"github.com/foxboron/go-tpm-keyfiles/template"
 	"github.com/google/go-tpm/tpm2"
 	"github.com/google/go-tpm/tpm2/transport"
 )
@@ -282,7 +281,7 @@ func NewAttestationParameters(rwc transport.TPMCloser) (*AttestationParameters, 
 }
 
 func verifySignature(pub *tpm2.TPMTPublic, b []byte, sig *tpm2.TPMTSignature) (bool, error) {
-	pk, err := template.FromTPMPublicToPubkey(pub)
+	pk, err := tpm2.Pub(*pub)
 	if err != nil {
 		return false, fmt.Errorf("not a valid private key")
 	}
