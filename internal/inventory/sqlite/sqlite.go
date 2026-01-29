@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/signal"
 
@@ -30,12 +31,21 @@ type Sqlite struct {
 }
 
 func NewSqlite() *Sqlite {
+	// Default values
 	return &Sqlite{
 		dir: "sqlite.db",
 	}
 }
 
 func (s *Sqlite) Init(config map[string]any) error {
+	if item, ok := config["path"]; ok {
+		path, ok := item.(string)
+		if !ok {
+			return fmt.Errorf("not a valid string for path")
+		}
+		s.dir = path
+	}
+
 	dbpool, err := sqlitex.NewPool(s.dir, sqlitex.PoolOptions{
 		PoolSize: 10,
 		PrepareConn: func(conn *sqlite.Conn) error {
