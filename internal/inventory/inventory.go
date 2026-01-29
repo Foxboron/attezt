@@ -8,9 +8,19 @@ import (
 )
 
 type Inventory interface {
+	// Lookup implements the function checking the inventory for a matching device that meets the attestation.
 	Lookup(attestation *attest.Attestation) (bool, error)
+
+	// GetEntry finds the database object by a given key.
+	GetEntry(key string) (any, error)
+
+	// Init initializes the inventory.
 	Init(config map[string]any) error
+
+	// Enroll adds a new device into the inventory.
 	Enroll(data map[string]any) error
+
+	// Remove removes a device from the inventory.
 	Remove(data map[string]any) error
 }
 

@@ -66,6 +66,37 @@ func (s *Sqlite) Init(config map[string]any) error {
 	return nil
 }
 
+func (s *Sqlite) GetEntry(key string) (any, error) {
+	conn, err := s.db.Take(context.Background())
+	if err != nil {
+		return false, err
+	}
+	defer s.db.Put(conn)
+
+	var jsonData []byte
+	if err = sqlitex.Execute(conn, "SELECT json(json_data) FROM devices WHERE ekcert = ?", &sqlitex.ExecOptions{
+		Args: []any{key},
+		ResultFunc: func(stmt *sqlite.Stmt) error {
+			jsonData = make([]byte, stmt.ColumnLen(0))
+			stmt.ColumnBytes(0, jsonData)
+			return nil
+		},
+	}); err != nil {
+		return false, err
+	}
+
+	if len(jsonData) == 0 {
+		return false, nil
+	}
+
+	var data DeviceData
+	if err := json.Unmarshal(jsonData, &data); err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
 func (s *Sqlite) Lookup(attestation *attest.Attestation) (bool, error) {
 	conn, err := s.db.Take(context.Background())
 	if err != nil {
