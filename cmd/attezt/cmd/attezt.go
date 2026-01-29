@@ -14,6 +14,7 @@ import (
 
 	"github.com/foxboron/attezt/internal/attest"
 	"github.com/foxboron/attezt/internal/certs"
+	"github.com/foxboron/attezt/internal/inventory"
 	ijson "github.com/foxboron/attezt/internal/json"
 	ssim "github.com/google/go-tpm-tools/simulator"
 	"github.com/google/go-tpm/tpm2"
@@ -193,7 +194,7 @@ var (
 	caCmd = flag.NewFlagSet("ca", flag.ExitOnError)
 )
 
-func CAMain(args []string) {
+func CAMain(args []string, backend inventory.Inventory) {
 	caCmd.Usage = func() {
 		fmt.Printf(`Usage:
 	create	Create an CA certificate chain
@@ -205,6 +206,27 @@ func CAMain(args []string) {
 	}
 	caCmd.Parse(args)
 	switch args[0] {
+	case "list":
+		// TODO: Implement
+	case "lookup":
+		// TODO: Implement
+		if len(args) != 2 {
+			caCmd.Usage()
+			os.Exit(0)
+		}
+	case "enroll":
+		// TODO: Implement
+		if len(args) != 2 {
+			caCmd.Usage()
+			os.Exit(0)
+		}
+		fmt.Println(args[1])
+	case "remove":
+		// TODO: Implement
+		if len(args) != 2 {
+			caCmd.Usage()
+			os.Exit(0)
+		}
 	case "create":
 		log.Println("Creating certificate authority certificates...")
 		chain := certs.NewCA()
@@ -225,6 +247,7 @@ func CAMain(args []string) {
 // Main flags
 var (
 	rootCmd = flag.NewFlagSet("attezt", flag.ExitOnError)
+	backend = rootCmd.String("backend", "default", "inventory backend to use (default: sqlite)")
 )
 
 func Main() {
@@ -242,7 +265,15 @@ func Main() {
 
 	switch os.Args[1] {
 	case "ca":
-		CAMain(os.Args[2:])
+		backend, err := inventory.GetBackend(*backend)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		if err := backend.Init(nil); err != nil {
+			log.Fatal(err)
+		}
+		CAMain(os.Args[2:], backend)
 	case "certificate":
 		CertificateMain(os.Args[2:])
 	default:
