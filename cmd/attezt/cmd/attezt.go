@@ -15,9 +15,9 @@ import (
 	"github.com/foxboron/attezt/internal/certs"
 	"github.com/foxboron/attezt/internal/inventory"
 	ijson "github.com/foxboron/attezt/internal/json"
+	tt "github.com/foxboron/attezt/internal/transport"
 	"github.com/google/go-tpm/tpm2"
 	"github.com/google/go-tpm/tpm2/transport"
-	"github.com/google/go-tpm/tpm2/transport/linuxtpm"
 )
 
 // Hardcoded to ALGRSA
@@ -131,7 +131,7 @@ func CertificateMain(args []string) {
 	case "ak":
 		log.Println("Requesting an attestation key...")
 
-		rwc, err := linuxtpm.Open("/dev/tpmrm0")
+		rwc, err := tt.GetTPM()
 		if err != nil {
 			log.Fatal(err)
 		}

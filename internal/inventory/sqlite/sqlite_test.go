@@ -5,12 +5,12 @@ import (
 
 	"github.com/foxboron/attezt/internal/attest"
 	"github.com/foxboron/attezt/internal/inventory/sqlite"
+	"github.com/foxboron/attezt/internal/transport"
 	"github.com/google/go-tpm/tpm2"
-	"github.com/google/go-tpm/tpm2/transport/linuxtpm"
 )
 
 func TestSqlite(t *testing.T) {
-	rwc, err := linuxtpm.Open("/dev/tpmrm0")
+	rwc, err := transport.GetTPM()
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -8,8 +8,8 @@ import (
 	atteztd "github.com/foxboron/attezt/cmd/atteztd/cmd"
 	"github.com/foxboron/attezt/internal/attest"
 	"github.com/foxboron/attezt/internal/inventory/sqlite"
+	tt "github.com/foxboron/attezt/internal/transport"
 	"github.com/google/go-tpm/tpm2"
-	"github.com/google/go-tpm/tpm2/transport/linuxtpm"
 	"github.com/rogpeppe/go-internal/testscript"
 )
 
@@ -24,7 +24,7 @@ func TestMain(m *testing.M) {
 			atteztd.Main()
 		},
 		"enrollekcert": func() {
-			rwc, err := linuxtpm.Open("/dev/tpmrm0")
+			rwc, err := tt.GetTPM()
 			if err != nil {
 				log.Fatal(err)
 			}

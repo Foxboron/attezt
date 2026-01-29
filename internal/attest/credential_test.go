@@ -6,13 +6,13 @@ import (
 	"testing"
 
 	"github.com/foxboron/attezt/internal/attest"
+	"github.com/foxboron/attezt/internal/transport"
 	keyfile "github.com/foxboron/go-tpm-keyfiles"
 	"github.com/google/go-tpm/tpm2"
-	"github.com/google/go-tpm/tpm2/transport/linuxtpm"
 )
 
 func TestEncap(t *testing.T) {
-	rwc, err := linuxtpm.Open("/dev/tpmrm0")
+	rwc, err := transport.GetTPM()
 	if err != nil {
 		t.Fatal(err)
 	}

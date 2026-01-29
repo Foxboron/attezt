@@ -5,13 +5,13 @@ import (
 
 	"github.com/foxboron/attezt/internal/attest"
 	"github.com/foxboron/attezt/internal/testutils"
+	"github.com/foxboron/attezt/internal/transport"
 	"github.com/google/go-tpm/tpm2"
-	"github.com/google/go-tpm/tpm2/transport/linuxtpm"
 	"github.com/google/go-tpm/tpm2/transport/simulator"
 )
 
 func Test_getEKCert(t *testing.T) {
-	rwc, err := linuxtpm.Open("/dev/tpmrm0")
+	rwc, err := transport.GetTPM()
 	if err != nil {
 		t.Fatal(err)
 	}
