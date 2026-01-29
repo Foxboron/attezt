@@ -4,8 +4,10 @@ import (
 	"testing"
 
 	"github.com/foxboron/attezt/internal/attest"
+	"github.com/foxboron/attezt/internal/testutils"
 	"github.com/google/go-tpm/tpm2"
 	"github.com/google/go-tpm/tpm2/transport/linuxtpm"
+	"github.com/google/go-tpm/tpm2/transport/simulator"
 )
 
 func Test_getEKCert(t *testing.T) {
@@ -36,5 +38,22 @@ func Test_getEKCert(t *testing.T) {
 				t.Fatal("getEKCert() succeeded unexpectedly")
 			}
 		})
+	}
+}
+
+func TestSetEKCert(t *testing.T) {
+	rwc, err := simulator.OpenSimulator()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rwc.Close()
+
+	if err := testutils.SetEKCertificate(rwc); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = attest.GetEKCert(rwc, tpm2.TPMAlgECC)
+	if err != nil {
+		t.Fatal(err)
 	}
 }
