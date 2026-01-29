@@ -1,8 +1,9 @@
-package attest
+package attest_test
 
 import (
 	"testing"
 
+	"github.com/foxboron/attezt/internal/attest"
 	"github.com/google/go-tpm/tpm2"
 	"github.com/google/go-tpm/tpm2/transport/linuxtpm"
 )
@@ -24,7 +25,7 @@ func Test_getEKCert(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, gotErr := getEKCert(rwc, tpm2.TPMAlgRSA)
+			_, gotErr := attest.GetEKCert(rwc, tpm2.TPMAlgECC)
 			if gotErr != nil {
 				if !tt.wantErr {
 					t.Errorf("getEKCert() failed: %v", gotErr)

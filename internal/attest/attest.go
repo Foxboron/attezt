@@ -73,7 +73,7 @@ func (a *Attestation) ActivateCredentialWithAlg(rwc transport.TPMCloser, alg tpm
 		KeyHandle: tpm2.AuthHandle{
 			Handle: ekHandle.Handle,
 			Name:   ekHandle.Name,
-			Auth:   tpm2.Policy(tpm2.TPMAlgSHA256, 16, ekPolicy),
+			Auth:   tpm2.Policy(tpm2.TPMAlgSHA256, 16, EkPolicy),
 		},
 		CredentialBlob: cred,
 		Secret:         secret,
@@ -161,7 +161,7 @@ func NewAttestationWithAlg(rwc transport.TPMCloser, alg tpm2.TPMAlgID) (*Attesta
 		return nil, fmt.Errorf("failed getting attestation parameters: %w", err)
 	}
 
-	cert, err := getEKCert(rwc, alg)
+	cert, err := GetEKCert(rwc, alg)
 	if err != nil {
 		return nil, fmt.Errorf("failed getting endorsement key certificate: %w", err)
 	}

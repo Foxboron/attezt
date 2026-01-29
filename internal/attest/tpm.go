@@ -187,7 +187,7 @@ func GetEK(rwc transport.TPMCloser, alg tpm2.TPMAlgID) (*tpm2.NamedHandle, *tpm2
 	}, tpublic, err
 }
 
-func ekPolicy(t transport.TPM, handle tpm2.TPMISHPolicy, nonceTPM tpm2.TPM2BNonce) error {
+func EkPolicy(t transport.TPM, handle tpm2.TPMISHPolicy, nonceTPM tpm2.TPM2BNonce) error {
 	cmd := tpm2.PolicySecret{
 		AuthHandle:    tpm2.TPMRHEndorsement,
 		PolicySession: handle,
@@ -270,7 +270,7 @@ func GetEKHandle(rwc transport.TPMCloser) (crypto.PublicKey, error) {
 	return tpm2.Pub(*pub)
 }
 
-func getEKCert(rwc transport.TPMCloser, alg tpm2.TPMAlgID) (*x509.Certificate, error) {
+func GetEKCert(rwc transport.TPMCloser, alg tpm2.TPMAlgID) (*x509.Certificate, error) {
 	// TODO: Smallstep does a lookup for all endorsement certs
 	// We should consider the same, but only pass cert from NV until further notice
 	// But check this if we somehow fail any checks
@@ -282,7 +282,6 @@ func getEKCert(rwc transport.TPMCloser, alg tpm2.TPMAlgID) (*x509.Certificate, e
 		handle = tpm2.TPMHandle(0x01C00002)
 	}
 	bb, err := nvReadEX(rwc, handle)
-	// bb, err := nvReadEX(rwc, tpm2.TPMHandle(0x01C00002))
 	if err != nil {
 		return nil, err
 	}

@@ -1,10 +1,11 @@
-package attest
+package attest_test
 
 import (
 	"bytes"
 	"crypto/rand"
 	"testing"
 
+	"github.com/foxboron/attezt/internal/attest"
 	keyfile "github.com/foxboron/go-tpm-keyfiles"
 	"github.com/google/go-tpm/tpm2"
 	"github.com/google/go-tpm/tpm2/transport/linuxtpm"
@@ -17,17 +18,17 @@ func TestEncap(t *testing.T) {
 	}
 	defer rwc.Close()
 
-	ap, err := NewAttestationParametersWithAlg(rwc, tpm2.TPMAlgECC)
+	ap, err := attest.NewAttestationParametersWithAlg(rwc, tpm2.TPMAlgECC)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	cert, err := getEKCert(rwc, tpm2.TPMAlgECC)
+	cert, err := attest.GetEKCert(rwc, tpm2.TPMAlgECC)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	ll := NewCryptoPublicEncapKey(cert.PublicKey)
+	ll := attest.NewCryptoPublicEncapKey(cert.PublicKey)
 
 	creat, err := ap.CreateAttestation.Attested.Creation()
 	if err != nil {
@@ -40,13 +41,13 @@ func TestEncap(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	akHandle, _, err := GetAK(rwc, tpm2.TPMAlgECC)
+	akHandle, _, err := attest.GetAK(rwc, tpm2.TPMAlgECC)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer keyfile.FlushHandle(rwc, akHandle)
 
-	ekHandle, _, err := GetEK(rwc, tpm2.TPMAlgECC)
+	ekHandle, _, err := attest.GetEK(rwc, tpm2.TPMAlgECC)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +58,7 @@ func TestEncap(t *testing.T) {
 		KeyHandle: tpm2.AuthHandle{
 			Handle: ekHandle.Handle,
 			Name:   ekHandle.Name,
-			Auth:   tpm2.Policy(tpm2.TPMAlgSHA256, 16, ekPolicy),
+			Auth:   tpm2.Policy(tpm2.TPMAlgSHA256, 16, attest.EkPolicy),
 		},
 		CredentialBlob: tpm2.TPM2BIDObject{Buffer: id},
 		Secret:         tpm2.TPM2BEncryptedSecret{Buffer: secret},
