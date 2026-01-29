@@ -7,7 +7,6 @@ import (
 	"encoding/pem"
 	"flag"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"os"
@@ -16,40 +15,13 @@ import (
 	"github.com/foxboron/attezt/internal/certs"
 	"github.com/foxboron/attezt/internal/inventory"
 	ijson "github.com/foxboron/attezt/internal/json"
-	ssim "github.com/google/go-tpm-tools/simulator"
 	"github.com/google/go-tpm/tpm2"
 	"github.com/google/go-tpm/tpm2/transport"
 	"github.com/google/go-tpm/tpm2/transport/linuxtpm"
-	"github.com/google/go-tpm/tpmutil"
 )
 
 // Hardcoded to ALGRSA
 var TPMALG = tpm2.TPMAlgRSA
-
-// TPM represents a connection to a TPM simulator.
-type TPM struct {
-	transport io.ReadWriteCloser
-}
-
-// Send implements the TPM interface.
-func (t *TPM) Send(input []byte) ([]byte, error) {
-	return tpmutil.RunCommandRaw(t.transport, input)
-}
-
-// Close implements the TPM interface.
-func (t *TPM) Close() error {
-	return t.transport.Close()
-}
-
-func OpenSimulator() (transport.TPMCloser, error) {
-	sim, err := ssim.GetWithFixedSeedInsecure(1234)
-	if err != nil {
-		return nil, err
-	}
-	return &TPM{
-		transport: sim,
-	}, nil
-}
 
 type AttestClient struct {
 	url string
