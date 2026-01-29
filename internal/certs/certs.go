@@ -101,8 +101,20 @@ func (c *Certificate) Bytes() []byte {
 	})
 }
 
+func (c *Certificate) Raw() []byte {
+	return c.certBytes
+}
+
 func (c *Certificate) SignerBytes() []byte {
 	return c.signer.Bytes()
+}
+
+func (c *Certificate) Signer() crypto.Signer {
+	return c.signer
+}
+
+func (c *Certificate) Certificate() *x509.Certificate {
+	return c.cert
 }
 
 func (c *Certificate) NewIntermediateCert() *Certificate {
