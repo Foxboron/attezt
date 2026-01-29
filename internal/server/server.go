@@ -1,6 +1,7 @@
 package server
 
 import (
+	"crypto/rand"
 	"encoding/pem"
 	"fmt"
 	"net/http"
@@ -12,9 +13,6 @@ import (
 	ijson "github.com/foxboron/attezt/internal/json"
 	"github.com/google/go-tpm/tpm2"
 )
-
-// TODO: We should autogenerate this. Oops
-var secret = []byte{1, 2, 3, 4, 5}
 
 type TPMAttestServer struct {
 	chain *certs.CertificateChain
@@ -35,6 +33,13 @@ func (t *TPMAttestServer) attestHandler(w http.ResponseWriter, r *http.Request) 
 	params, err := ijson.Decode[attest.Attestation](r.Body)
 	if err != nil {
 		fmt.Println(err)
+		return
+	}
+
+	secret := make([]byte, 32)
+	_, err = rand.Read(secret)
+	if err != nil {
+		fmt.Fprintf(w, "failed to obtain random challenge:%v", err)
 		return
 	}
 
