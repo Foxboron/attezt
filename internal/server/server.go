@@ -39,7 +39,7 @@ func (t *TPMAttestServer) attestHandler(w http.ResponseWriter, r *http.Request) 
 	secret := make([]byte, 32)
 	_, err = rand.Read(secret)
 	if err != nil {
-		fmt.Fprintf(w, "failed to obtain random challenge:%v", err)
+		fmt.Fprintf(w, "failed to obtain random challenge: %v", err)
 		return
 	}
 
@@ -58,7 +58,7 @@ func (t *TPMAttestServer) attestHandler(w http.ResponseWriter, r *http.Request) 
 			fmt.Println(err)
 		}
 		// We did not find the device in the inventory
-		fmt.Fprintf(w, "attestation verification failed")
+		fmt.Fprintf(w, "invetory lookup failed")
 		return
 	}
 
