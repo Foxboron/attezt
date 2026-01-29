@@ -24,7 +24,7 @@ func Decode[T any](b io.ReadCloser) (T, error) {
 	var buf bytes.Buffer
 	tee := io.TeeReader(b, &buf)
 	if err := json.NewDecoder(tee).Decode(&v); err != nil {
-		return v, fmt.Errorf("decode json: %w", err)
+		return v, fmt.Errorf("decode json: %w: %s", err, buf.String())
 	}
 	fmt.Println(buf.String())
 	return v, nil
