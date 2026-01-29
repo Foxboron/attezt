@@ -10,7 +10,7 @@ This entire project is a WIP, unsure how feature complete it will be.
 `attezt` needs a small CA chain. Create this with `attezt`.
 
 ```
-λ » attezt -create-certs
+λ » attezt ca create
 ```
 
 `atteztd` runs the attestation server. Note that this will sign any certificates that are capable of solving the challenge.
@@ -37,4 +37,10 @@ To use this service with `step ca certificate` you can run something similar to 
   --attestation-uri 'tpmkms:name=device-key' \
   --attestation-ca-url 'http://127.0.0.1:8080' \
   --provisioner acme-da test device device.crt
+```
+
+You can also renew a device certificate.
+
+```
+λ » step ca renew --force --kms "tpmkms" ./device 'tpmkms:name=device'
 ```
