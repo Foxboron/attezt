@@ -33,10 +33,17 @@ Add the provider into `step-ca`.
 To use this service with `step ca certificate` you can run something similar to the below thing.
 
 ```
-λ » step ca certificate \
-  --attestation-uri 'tpmkms:name=device-key' \
+# Create an attestation certificate
+λ ~ » step ca certificate \
   --attestation-ca-url 'http://127.0.0.1:8080' \
-  --provisioner acme-da test device device.crt
+  --attestation-uri 'tpmkms:name=ak;ak=true' \
+  --provisioner acme-da device-ak device-ak.key akcrt
+
+# Device certificate attested by ak
+λ » step ca certificate \
+  --attestation-ca-url 'http://127.0.0.1:8080' \
+  --attestation-uri 'tpmkms:name=device-key;attest-by=ak' \
+  --provisioner acme-da device device device.crt
 ```
 
 You can also renew a device certificate.
