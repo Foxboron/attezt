@@ -42,6 +42,7 @@ func Test_getEKCert(t *testing.T) {
 }
 
 func TestSetEKCert(t *testing.T) {
+	// Use simulator, we want to test the creation
 	rwc, err := simulator.OpenSimulator()
 	if err != nil {
 		t.Fatal(err)

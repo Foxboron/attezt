@@ -31,6 +31,18 @@ var _ crypto.Signer = &TPMSigner{}
 
 // SetEKCertificate sets a fake EK certificate so we can pass attestation checks in tests
 func SetEKCertificate(rwc transport.TPMCloser) error {
+	// TODO: We should create RSA and ECC
+	certHandle := tpm2.TPMHandle(0x01C0000A)
+
+	_, err := tpm2.NVReadPublic{
+		NVIndex: certHandle,
+	}.Execute(rwc)
+	if err == nil {
+		// abort ek cert creation
+		// it already exists
+		return nil
+	}
+
 	// TODO: Abstract this away so we can mock an EK signing chain
 	rootCert := certs.NewRootCertificate()
 
@@ -57,7 +69,6 @@ func SetEKCertificate(rwc transport.TPMCloser) error {
 	cert := certs.NewCertificate(template, rootCert.Certificate(), &TPMSigner{cpub}, rootCert.Signer())
 
 	cert.Bytes()
-	certHandle := tpm2.TPMHandle(0x01C0000A)
 
 	def := tpm2.NVDefineSpace{
 		AuthHandle: tpm2.TPMRHOwner,
