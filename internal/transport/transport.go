@@ -1,7 +1,6 @@
 package transport
 
 import (
-	"fmt"
 	"io"
 	"testing"
 
@@ -39,7 +38,6 @@ func OpenSimulator() (transport.TPMCloser, error) {
 
 func GetTPM() (transport.TPMCloser, error) {
 	if testing.Testing() {
-		fmt.Println("initied testing")
 		rwc, err := OpenSimulator()
 		if err != nil {
 			return nil, err
