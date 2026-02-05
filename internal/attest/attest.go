@@ -20,7 +20,7 @@ import (
 
 type Attestation struct {
 	TPMInfo      *TPMInfo
-	EKCerts      [][]byte
+	EKCerts      []*x509.Certificate
 	EKPub        crypto.PublicKey
 	AKCert       []byte
 	AttestParams *AttestationParameters
@@ -124,7 +124,15 @@ func (a *Attestation) UnmarshalJSON(b []byte) error {
 	if err != nil {
 		return err
 	}
-	a.EKCerts = obj.EKCerts
+	certs := make([]*x509.Certificate, len(obj.EKCerts))
+	for n, c := range obj.EKCerts {
+		xcert, err := x509.ParseCertificate(c)
+		if err != nil {
+			return err
+		}
+		certs[n] = xcert
+	}
+	a.EKCerts = certs
 	a.EKPub = pub
 	a.AKCert = obj.AKCert
 	a.AttestParams = obj.AttestParams
@@ -137,10 +145,14 @@ func (a *Attestation) MarshalJSON() ([]byte, error) {
 	if ekPub, err = x509.MarshalPKIXPublicKey(a.EKPub); err != nil {
 		panic(fmt.Sprintf("failed marshaling public key: %v", err))
 	}
+	certs := make([][]byte, len(a.EKCerts))
+	for n, c := range a.EKCerts {
+		certs[n] = c.Raw
+	}
 	return json.Marshal(&attestationRequest{
 		TPMInfo:      a.TPMInfo,
 		EKPub:        ekPub,
-		EKCerts:      a.EKCerts,
+		EKCerts:      certs,
 		AttestParams: a.AttestParams,
 	})
 }
@@ -172,7 +184,7 @@ func NewAttestationWithAlg(rwc transport.TPMCloser, alg tpm2.TPMAlgID) (*Attesta
 			FirmwareVersion: "test",
 		},
 		// TODO: This should be ECC and RSA certs
-		EKCerts: [][]byte{cert.Raw},
+		EKCerts: []*x509.Certificate{cert},
 		EKPub:   cert.PublicKey,
 		// TODO: Not used?
 		// AKCert:       []byte{},
