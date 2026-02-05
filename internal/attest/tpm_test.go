@@ -58,3 +58,24 @@ func TestSetEKCert(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestEKChainParse(t *testing.T) {
+	rwc, err := transport.GetTPM()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rwc.Close()
+
+	cert, err := attest.GetEKCert(rwc, tpm2.TPMAlgECC)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ok, _, err := attest.VerifyEKCert(cert)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Fatal("failed verifying ek cert chain")
+	}
+}

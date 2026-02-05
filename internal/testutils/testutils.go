@@ -4,8 +4,11 @@ import (
 	"crypto"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"fmt"
 	"io"
 	"math/big"
+	"net/http"
+	"net/http/httptest"
 	"time"
 
 	"github.com/foxboron/attezt/internal/attest"
@@ -53,6 +56,12 @@ func SetEKCertificate(rwc transport.TPMCloser) error {
 
 	cpub, _ := tpm2.Pub(*tpub)
 
+	// We assume the test suite will clean this up.
+	// Not great. Not terrible.
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, string(rootCert.Raw()))
+	}))
+
 	template := &x509.Certificate{
 		SerialNumber: big.NewInt(1),
 		Subject: pkix.Name{
@@ -65,6 +74,7 @@ func SetEKCertificate(rwc transport.TPMCloser) error {
 		IsCA:                  true,
 		MaxPathLen:            0,
 		MaxPathLenZero:        true,
+		IssuingCertificateURL: []string{ts.URL},
 	}
 	cert := certs.NewCertificate(template, rootCert.Certificate(), &TPMSigner{cpub}, rootCert.Signer())
 

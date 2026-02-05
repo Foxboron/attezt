@@ -160,6 +160,15 @@ func (a *Attestation) MarshalJSON() ([]byte, error) {
 // Verify attestation
 func (a *Attestation) Verify() (bool, error) {
 	// TODO: Quotes
+	for _, ekcert := range a.EKCerts {
+		ok, _, err := VerifyEKCert(ekcert)
+		if err != nil {
+			return false, err
+		}
+		if !ok {
+			return false, fmt.Errorf("failed verifying EK cert chain")
+		}
+	}
 	return a.AttestParams.Verify()
 }
 

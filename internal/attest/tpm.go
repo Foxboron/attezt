@@ -3,6 +3,11 @@ package attest
 import (
 	"crypto"
 	"crypto/x509"
+	"encoding/asn1"
+	"fmt"
+	"io"
+	"net/http"
+	"time"
 
 	"github.com/google/go-tpm/tpm2"
 	"github.com/google/go-tpm/tpm2/transport"
@@ -286,6 +291,52 @@ func GetEKCert(rwc transport.TPMCloser, alg tpm2.TPMAlgID) (*x509.Certificate, e
 		return nil, err
 	}
 	return x509.ParseCertificate(bb)
+}
+
+func VerifyEKCert(cert *x509.Certificate) (bool, [][]*x509.Certificate, error) {
+	// TODO: Figure out if we are only dealing with root certs
+
+	// Clean away the invalid SAN extension
+	oidExtensionSubjectAltName := []int{2, 5, 29, 17}
+	var exts []asn1.ObjectIdentifier
+	for _, ext := range cert.UnhandledCriticalExtensions {
+		if ext.Equal(oidExtensionSubjectAltName) {
+			continue
+		}
+		exts = append(exts, ext)
+	}
+	cert.UnhandledCriticalExtensions = exts
+
+	if len(cert.IssuingCertificateURL) == 0 {
+		return false, nil, fmt.Errorf("endorsement Certificate does not have issuing url for root CA")
+	}
+
+	// TODO: Add context here
+	rsp, err := http.Get(cert.IssuingCertificateURL[0])
+	if err != nil {
+		return false, nil, err
+	}
+	b, err := io.ReadAll(rsp.Body)
+	if err != nil {
+		return false, nil, err
+	}
+	rootCert, err := x509.ParseCertificate(b)
+	if err != nil {
+		return false, nil, err
+	}
+
+	rootPool := x509.NewCertPool()
+	rootPool.AddCert(rootCert)
+
+	chain, err := cert.Verify(x509.VerifyOptions{
+		Roots:       rootPool,
+		CurrentTime: time.Now().Truncate(time.Second),
+		KeyUsages:   []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
+	})
+	if err != nil {
+		return false, nil, err
+	}
+	return true, chain, nil
 }
 
 func GetSRKPrimary(rwc transport.TPMCloser) (*tpm2.NamedHandle, *tpm2.TPMTPublic, error) {
