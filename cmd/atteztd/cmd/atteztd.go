@@ -8,25 +8,28 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 
 	"github.com/foxboron/attezt/internal/certs"
 	"github.com/foxboron/attezt/internal/inventory"
 	"github.com/foxboron/attezt/internal/server"
+	"github.com/foxboron/attezt/internal/truststore"
 )
 
 const usage = `Usage:`
 
 // Flags for rootcmd
 var (
-	backend = flag.String("backend", "default", "inventory backend to use (default: sqlite)")
+	backend   = flag.String("backend", "default", "inventory backend to use (default: sqlite)")
+	certstore = flag.String("certstore", "", "directory with pinned certificate roots (default: empty)")
 )
 
-func run(ctx context.Context, backend inventory.Inventory) error {
+func run(ctx context.Context, ts *truststore.TrustStore, backend inventory.Inventory) error {
 	chain, err := certs.ReadChainFromDir(".")
 	if err != nil {
 		return fmt.Errorf("failed reading certs: %v", err)
 	}
-	as := server.NewTPMAttestServer(chain, backend)
+	as := server.NewTPMAttestServer(chain, ts, backend)
 
 	srv := &http.Server{
 		Addr:    ":8080",
@@ -68,8 +71,24 @@ func Main() {
 		log.Fatal(err)
 	}
 
+	// Initialize the truststore
+	var ts *truststore.TrustStore
+	if *certstore != "" {
+		path, err := filepath.Abs(*certstore)
+		if err != nil {
+			log.Fatal(err)
+		}
+		ts, err = truststore.NewTrustStoreFromDirectory(os.DirFS(path))
+		if err != nil {
+			log.Fatal(err)
+		}
+	} else {
+		// Fetch remote issuing certificates as we have no cert store
+		ts = truststore.NewTrustStore(true)
+	}
+
 	ctx := context.Background()
-	if err := run(ctx, backend); err != nil {
+	if err := run(ctx, ts, backend); err != nil {
 		fmt.Fprintf(os.Stderr, "%s\n", err)
 		os.Exit(1)
 	}

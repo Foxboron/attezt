@@ -11,6 +11,7 @@ import (
 	"github.com/foxboron/attezt/internal/certs"
 	"github.com/foxboron/attezt/internal/inventory"
 	ijson "github.com/foxboron/attezt/internal/json"
+	"github.com/foxboron/attezt/internal/truststore"
 	"github.com/google/go-tpm/tpm2"
 )
 
@@ -19,13 +20,15 @@ type TPMAttestServer struct {
 	// config *Config
 	state     *sync.Map
 	inventory inventory.Inventory
+	ts        *truststore.TrustStore
 }
 
-func NewTPMAttestServer(chain *certs.CertificateChain, inventory inventory.Inventory) *TPMAttestServer {
+func NewTPMAttestServer(chain *certs.CertificateChain, ts *truststore.TrustStore, inventory inventory.Inventory) *TPMAttestServer {
 	return &TPMAttestServer{
 		chain:     chain,
 		state:     new(sync.Map),
 		inventory: inventory,
+		ts:        ts,
 	}
 }
 
@@ -41,6 +44,15 @@ func (t *TPMAttestServer) attestHandler(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		fmt.Fprintf(w, "failed to obtain random challenge: %v", err)
 		return
+	}
+
+	// Validate that we trust the EK certificate roots
+	for _, ekcert := range params.EKCerts {
+		_, err = t.ts.VerifyCertificate(ekcert)
+		if err != nil {
+			fmt.Fprintf(w, "failed validating ek roots")
+			return
+		}
 	}
 
 	ok, err := params.Verify()
