@@ -26,14 +26,14 @@ const (
 )
 
 type Sqlite struct {
-	dir string
-	db  *sqlitex.Pool
+	path string
+	db   *sqlitex.Pool
 }
 
 func NewSqlite() *Sqlite {
 	// Default values
 	return &Sqlite{
-		dir: "sqlite.db",
+		path: "sqlite.db",
 	}
 }
 
@@ -43,10 +43,10 @@ func (s *Sqlite) Init(config map[string]any) error {
 		if !ok {
 			return fmt.Errorf("not a valid string for path")
 		}
-		s.dir = path
+		s.path = path
 	}
 
-	dbpool, err := sqlitex.NewPool(s.dir, sqlitex.PoolOptions{
+	dbpool, err := sqlitex.NewPool(s.path, sqlitex.PoolOptions{
 		PoolSize: 10,
 		PrepareConn: func(conn *sqlite.Conn) error {
 			return sqlitex.ExecScript(conn, schema)

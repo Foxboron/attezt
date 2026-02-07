@@ -1,6 +1,7 @@
 package sqlite_test
 
 import (
+	"path"
 	"testing"
 
 	"github.com/foxboron/attezt/internal/attest"
@@ -22,7 +23,9 @@ func TestSqlite(t *testing.T) {
 	}
 
 	db := sqlite.NewSqlite()
-	if err := db.Init(nil); err != nil {
+	if err := db.Init(map[string]any{
+		"path": path.Join(t.TempDir(), "sqlite.db"),
+	}); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Enroll(map[string]any{
