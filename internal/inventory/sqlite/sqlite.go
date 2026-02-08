@@ -67,9 +67,11 @@ func (s *Sqlite) Init(config map[string]any) error {
 }
 
 func (s *Sqlite) GetEntry(key string) (any, error) {
+	var data DeviceData
+
 	conn, err := s.db.Take(context.Background())
 	if err != nil {
-		return false, err
+		return data, err
 	}
 	defer s.db.Put(conn)
 
@@ -82,16 +84,15 @@ func (s *Sqlite) GetEntry(key string) (any, error) {
 			return nil
 		},
 	}); err != nil {
-		return false, err
+		return data, err
 	}
 
 	if len(jsonData) == 0 {
-		return false, nil
+		return data, nil
 	}
 
-	var data DeviceData
 	if err := json.Unmarshal(jsonData, &data); err != nil {
-		return false, err
+		return data, err
 	}
 
 	return true, nil
