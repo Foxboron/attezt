@@ -40,7 +40,7 @@ func TestMain(m *testing.M) {
 				log.Fatal(err)
 			}
 			if err := db.Enroll(map[string]any{
-				"ek_cert": a.EKPubHash(),
+				"ekcert": a.EKPubHash(),
 			}); err != nil {
 				log.Fatal(err)
 			}
@@ -52,7 +52,6 @@ func TestPlugin(t *testing.T) {
 	testscript.Run(t, testscript.Params{
 		Dir: "testdata",
 		Setup: func(e *testscript.Env) error {
-			// e.Vars = append(e.Vars, "_AGE_TPM_SIMULATOR=1")
 			return nil
 		},
 	})

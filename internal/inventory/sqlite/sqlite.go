@@ -13,7 +13,7 @@ import (
 )
 
 type DeviceData struct {
-	EKCert string `json:"ek_cert"`
+	EKCert string `json:"ekcert"`
 }
 
 const (

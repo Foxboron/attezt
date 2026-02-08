@@ -29,7 +29,7 @@ func TestSqlite(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := db.Enroll(map[string]any{
-		"ek_cert": a.EKPubHash(),
+		"ekcert": a.EKPubHash(),
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +42,7 @@ func TestSqlite(t *testing.T) {
 		t.Fatalf("failed finding device")
 	}
 	if err := db.Remove(map[string]any{
-		"ek_cert": a.EKPubHash(),
+		"ekcert": a.EKPubHash(),
 	}); err != nil {
 		t.Fatal(err)
 	}
