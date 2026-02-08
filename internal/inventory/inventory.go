@@ -22,6 +22,9 @@ type Inventory interface {
 
 	// Remove removes a device from the inventory.
 	Remove(data map[string]any) error
+
+	// Remove removes a device from the inventory.
+	List() (any, error)
 }
 
 var Inventories = map[string]Inventory{

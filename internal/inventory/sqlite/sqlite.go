@@ -172,3 +172,29 @@ func (s *Sqlite) Remove(data map[string]any) error {
 		Args: []any{remove.EKCert},
 	})
 }
+
+func (s *Sqlite) List() (any, error) {
+	var data []*DeviceData
+	conn, err := s.db.Take(context.Background())
+	if err != nil {
+		return data, err
+	}
+	defer s.db.Put(conn)
+
+	var jsonData []byte
+	if err = sqlitex.Execute(conn, "SELECT json(json_data) FROM devices", &sqlitex.ExecOptions{
+		ResultFunc: func(stmt *sqlite.Stmt) error {
+			var dev DeviceData
+			jsonData = make([]byte, stmt.ColumnLen(0))
+			stmt.ColumnBytes(0, jsonData)
+			if err := json.Unmarshal(jsonData, &dev); err != nil {
+				return err
+			}
+			data = append(data, &dev)
+			return nil
+		},
+	}); err != nil {
+		return data, err
+	}
+	return data, nil
+}

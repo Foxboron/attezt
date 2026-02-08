@@ -54,3 +54,43 @@ func TestSqlite(t *testing.T) {
 		t.Fatalf("device should have been deleted")
 	}
 }
+
+func TestSqlite2(t *testing.T) {
+	rwc, err := transport.GetTPM()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rwc.Close()
+
+	db := sqlite.NewSqlite()
+	if err := db.Init(map[string]any{
+		"path": path.Join(t.TempDir(), "sqlite.db"),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Enroll(map[string]any{
+		"ekcert": "123456123123123",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := db.Enroll(map[string]any{
+		"ekcert": "112233445566",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	devices, err := db.List()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	devs, ok := devices.([]*sqlite.DeviceData)
+	if !ok {
+		t.Fatal("did not append 2 to the database")
+	}
+
+	if len(devs) != 2 {
+		t.Fatal("did not append 2 to the database")
+	}
+}
