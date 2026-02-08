@@ -19,8 +19,8 @@ RUN apk update \
         && apk add --no-cache bash curl tzdata jq \
         && addgroup -g ${PGID} attezt \
         && adduser -h ${ATTEZTPATH} -D -u ${PUID} -G attezt attezt \
-        && ls / \ 
-        && chown attezt: /attezt
+        && mkdir /run/attezt \
+        && chown attezt: /attezt /run/attezt
 
 COPY --from=builder /src/attezt "/usr/local/bin/attezt"
 COPY --from=builder /src/atteztd "/usr/local/bin/atteztd"

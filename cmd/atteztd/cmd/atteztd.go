@@ -14,6 +14,7 @@ import (
 	"github.com/foxboron/attezt/internal/inventory"
 	"github.com/foxboron/attezt/internal/server"
 	"github.com/foxboron/attezt/internal/truststore"
+	"github.com/foxboron/attezt/internal/varlink"
 )
 
 const usage = `Usage:`
@@ -22,6 +23,7 @@ const usage = `Usage:`
 var (
 	backend   = flag.String("backend", "default", "inventory backend to use (default: sqlite)")
 	certstore = flag.String("certstore", "", "directory with pinned certificate roots (default: empty)")
+	vsflag    = flag.String("varlink", "/run/attezt/dev.attezt.Server", "address for varlink (default: /run/attezt/dev.attezt.Server)")
 )
 
 func run(ctx context.Context, ts *truststore.TrustStore, backend inventory.Inventory) error {
@@ -36,6 +38,12 @@ func run(ctx context.Context, ts *truststore.TrustStore, backend inventory.Inven
 		Handler: as.Handlers(),
 	}
 
+	vs, err := varlink.NewVarlinkServer(*vsflag, backend)
+	if err != nil {
+		return err
+	}
+	defer vs.Shutdown()
+
 	// TODO: This can probably be simpler?
 	idleConnsClosed := make(chan struct{})
 	go func() {
@@ -49,6 +57,7 @@ func run(ctx context.Context, ts *truststore.TrustStore, backend inventory.Inven
 	}()
 
 	log.Printf("HTTP server listening on :8080")
+	log.Printf("Varlink socket on %s", *vsflag)
 	if err := srv.ListenAndServe(); err != http.ErrServerClosed {
 		log.Fatalf("HTTP server ListenAndServe: %v", err)
 	}

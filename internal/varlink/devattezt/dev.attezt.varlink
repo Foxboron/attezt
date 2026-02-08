@@ -1,0 +1,10 @@
+interface dev.attezt
+
+type Device (
+  ekcert: string
+)
+
+method GetDevice(ekcert: string) -> (device: Device)
+method ListDevices() -> (devices: []Device)
+method Enroll(ekcert: string) -> ()
+method Remove(ekcert: string) -> ()

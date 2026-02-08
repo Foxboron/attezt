@@ -6,7 +6,7 @@ exists intermediate_ca.pem
 exists intermediate_ca.key
 
 # Test certificate mint
-atteztd &atteztd&
+atteztd -varlink attezt &atteztd&
 enrollekcert
 attezt certificate ak
 exists device_certificate.pem

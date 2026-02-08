@@ -1,6 +1,7 @@
 package attezt
 
 import (
+	"context"
 	"encoding/pem"
 	"flag"
 	"fmt"
@@ -8,8 +9,9 @@ import (
 	"os"
 
 	"github.com/foxboron/attezt/internal/certs"
-	"github.com/foxboron/attezt/internal/inventory"
 	tt "github.com/foxboron/attezt/internal/transport"
+	"github.com/foxboron/attezt/internal/varlink"
+	"github.com/foxboron/attezt/internal/varlink/devattezt"
 )
 
 // ca flags
@@ -64,10 +66,11 @@ func CertificateMain(args []string) {
 
 // ca flags
 var (
-	caCmd = flag.NewFlagSet("ca", flag.ExitOnError)
+	caCmd  = flag.NewFlagSet("ca", flag.ExitOnError)
+	vsflag = caCmd.String("varlink", "/run/attezt/dev.attezt.Server", "address for varlink (default: /run/attezt/dev.attezt.Server)")
 )
 
-func CAMain(args []string, backend inventory.Inventory) {
+func CAMain(args []string) {
 	caCmd.Usage = func() {
 		fmt.Printf(`Usage:
 	create	Create an CA certificate chain
@@ -78,27 +81,68 @@ func CAMain(args []string, backend inventory.Inventory) {
 		os.Exit(0)
 	}
 	caCmd.Parse(args)
+
 	switch args[0] {
 	case "list":
-		// TODO: Implement
+
+		ctx := context.Background()
+		conn, err := varlink.NewVarlinkClient(*vsflag)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer conn.Close()
+
+		devs, err := devattezt.ListDevices().Call(ctx, conn)
+		if err != nil {
+			log.Fatal(err)
+		}
+		for _, d := range devs {
+			fmt.Println(d.Ekcert)
+		}
 	case "lookup":
-		// TODO: Implement
+		ctx := context.Background()
+		conn, err := varlink.NewVarlinkClient(*vsflag)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer conn.Close()
+
 		if len(args) != 2 {
 			caCmd.Usage()
 			os.Exit(0)
 		}
+		dev, err := devattezt.GetDevice().Call(ctx, conn, args[1])
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Println(dev.Ekcert)
 	case "enroll":
-		// TODO: Implement
+		ctx := context.Background()
+		conn, err := varlink.NewVarlinkClient(*vsflag)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer conn.Close()
 		if len(args) != 2 {
 			caCmd.Usage()
 			os.Exit(0)
 		}
-		fmt.Println(args[1])
+		if err := devattezt.Enroll().Call(ctx, conn, args[1]); err != nil {
+			log.Fatal(err)
+		}
 	case "remove":
-		// TODO: Implement
+		ctx := context.Background()
+		conn, err := varlink.NewVarlinkClient(*vsflag)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer conn.Close()
 		if len(args) != 2 {
 			caCmd.Usage()
 			os.Exit(0)
+		}
+		if err := devattezt.Remove().Call(ctx, conn, args[1]); err != nil {
+			log.Fatal(err)
 		}
 	case "create":
 		log.Println("Creating certificate authority certificates...")
@@ -120,7 +164,6 @@ func CAMain(args []string, backend inventory.Inventory) {
 // Main flags
 var (
 	rootCmd = flag.NewFlagSet("attezt", flag.ExitOnError)
-	backend = rootCmd.String("backend", "default", "inventory backend to use (default: sqlite)")
 )
 
 func Main() {
@@ -138,15 +181,7 @@ func Main() {
 
 	switch os.Args[1] {
 	case "ca":
-		backend, err := inventory.GetBackend(*backend)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		if err := backend.Init(nil); err != nil {
-			log.Fatal(err)
-		}
-		CAMain(os.Args[2:], backend)
+		CAMain(os.Args[2:])
 	case "certificate":
 		CertificateMain(os.Args[2:])
 	default:
