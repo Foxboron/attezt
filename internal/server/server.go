@@ -12,7 +12,6 @@ import (
 	"github.com/foxboron/attezt/internal/inventory"
 	ijson "github.com/foxboron/attezt/internal/json"
 	"github.com/foxboron/attezt/internal/truststore"
-	"github.com/google/go-tpm/tpm2"
 )
 
 type TPMAttestServer struct {
@@ -79,9 +78,6 @@ func (t *TPMAttestServer) attestHandler(w http.ResponseWriter, r *http.Request) 
 		fmt.Println(err)
 		return
 	}
-
-	rakpub, _ := tpm2.Pub(*params.AttestParams.Public)
-	fmt.Printf("Remote AKPublic: %s\n", attest.HashPub(rakpub))
 
 	t.state.Store(string(secret), &params)
 
