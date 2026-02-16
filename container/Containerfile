@@ -5,6 +5,7 @@ COPY go.mod go.sum .
 RUN go mod download
 COPY . .
 
+RUN go generate ./...
 RUN go build -o . ./cmd/...
 
 FROM alpine
@@ -30,4 +31,4 @@ WORKDIR /attezt
 
 VOLUME ["/attezt"]
 
-CMD [ "/bin/bash" ]
+CMD [ "/usr/local/bin/atteztd" ]
