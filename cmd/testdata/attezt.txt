@@ -6,7 +6,17 @@ exists intermediate_ca.pem
 exists intermediate_ca.key
 
 # Test certificate mint
-atteztd -varlink attezt &atteztd&
+atteztd --varlink attezt &atteztd&
 enrollekcert
 attezt certificate ak
 exists device_certificate.pem
+
+# Ensure we can enroll/remove/lookup/list entries over varlink
+attezt ca --varlink ./attezt enroll 123456
+attezt ca --varlink ./attezt list
+stdout 123456
+attezt ca --varlink ./attezt lookup 123456
+stdout 123456
+attezt ca --varlink ./attezt remove 123456
+attezt ca --varlink ./attezt list
+! stdout 123456

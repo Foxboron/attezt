@@ -2,7 +2,6 @@ package atteztd
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -15,18 +14,61 @@ import (
 	"github.com/foxboron/attezt/internal/server"
 	"github.com/foxboron/attezt/internal/truststore"
 	"github.com/foxboron/attezt/internal/varlink"
+	"github.com/urfave/cli/v3"
 )
 
-const usage = `Usage:`
+var cmd = &cli.Command{
+	Name:    "atteztd",
+	Version: "v0.0.0",
+	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name:  "varlink",
+			Value: "/run/attezt/dev.attezt.Server",
+			Usage: "address for varlink",
+		},
+		&cli.StringFlag{
+			Name:  "backend",
+			Value: "default",
+			Usage: "inventory backend to use",
+		},
+		&cli.StringFlag{
+			Name:  "certstore",
+			Value: "",
+			Usage: "directory with pinned certificate roots",
+		},
+	},
+	Action: func(ctx context.Context, cmd *cli.Command) error {
+		backend, err := inventory.GetBackend(cmd.String("backend"))
+		if err != nil {
+			log.Fatal(err)
+		}
 
-// Flags for rootcmd
-var (
-	backend   = flag.String("backend", "default", "inventory backend to use (default: sqlite)")
-	certstore = flag.String("certstore", "", "directory with pinned certificate roots (default: empty)")
-	vsflag    = flag.String("varlink", "/run/attezt/dev.attezt.Server", "address for varlink (default: /run/attezt/dev.attezt.Server)")
-)
+		if err := backend.Init(nil); err != nil {
+			log.Fatal(err)
+		}
 
-func run(ctx context.Context, ts *truststore.TrustStore, backend inventory.Inventory) error {
+		// Initialize the truststore
+		var ts *truststore.TrustStore
+		certstore := cmd.String("certstore")
+		if certstore != "" {
+			path, err := filepath.Abs(certstore)
+			if err != nil {
+				log.Fatal(err)
+			}
+			ts, err = truststore.NewTrustStoreFromDirectory(os.DirFS(path))
+			if err != nil {
+				log.Fatal(err)
+			}
+		} else {
+			// Fetch remote issuing certificates as we have no cert store
+			ts = truststore.NewTrustStore(true)
+		}
+
+		return run(ctx, cmd.String("varlink"), ts, backend)
+	},
+}
+
+func run(ctx context.Context, vsaddr string, ts *truststore.TrustStore, backend inventory.Inventory) error {
 	chain, err := certs.ReadChainFromDir(".")
 	if err != nil {
 		return fmt.Errorf("failed reading certs: %v", err)
@@ -38,7 +80,7 @@ func run(ctx context.Context, ts *truststore.TrustStore, backend inventory.Inven
 		Handler: as.Handlers(),
 	}
 
-	vs, err := varlink.NewVarlinkServer(*vsflag, backend)
+	vs, err := varlink.NewVarlinkServer(vsaddr, backend)
 	if err != nil {
 		return err
 	}
@@ -57,7 +99,7 @@ func run(ctx context.Context, ts *truststore.TrustStore, backend inventory.Inven
 	}()
 
 	log.Printf("HTTP server listening on :8080")
-	log.Printf("Varlink socket on %s", *vsflag)
+	log.Printf("Varlink socket on %s", vsaddr)
 	if err := srv.ListenAndServe(); err != http.ErrServerClosed {
 		log.Fatalf("HTTP server ListenAndServe: %v", err)
 	}
@@ -66,39 +108,7 @@ func run(ctx context.Context, ts *truststore.TrustStore, backend inventory.Inven
 }
 
 func Main() {
-	flag.Usage = func() {
-		fmt.Println(usage)
-	}
-	flag.Parse()
-
-	backend, err := inventory.GetBackend(*backend)
-	if err != nil {
+	if err := cmd.Run(context.Background(), os.Args); err != nil {
 		log.Fatal(err)
-	}
-
-	if err := backend.Init(nil); err != nil {
-		log.Fatal(err)
-	}
-
-	// Initialize the truststore
-	var ts *truststore.TrustStore
-	if *certstore != "" {
-		path, err := filepath.Abs(*certstore)
-		if err != nil {
-			log.Fatal(err)
-		}
-		ts, err = truststore.NewTrustStoreFromDirectory(os.DirFS(path))
-		if err != nil {
-			log.Fatal(err)
-		}
-	} else {
-		// Fetch remote issuing certificates as we have no cert store
-		ts = truststore.NewTrustStore(true)
-	}
-
-	ctx := context.Background()
-	if err := run(ctx, ts, backend); err != nil {
-		fmt.Fprintf(os.Stderr, "%s\n", err)
-		os.Exit(1)
 	}
 }
