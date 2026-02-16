@@ -95,7 +95,7 @@ func (s *Sqlite) GetEntry(key string) (any, error) {
 		return data, err
 	}
 
-	return true, nil
+	return data, nil
 }
 
 func (s *Sqlite) Lookup(attestation *attest.Attestation) (bool, error) {
