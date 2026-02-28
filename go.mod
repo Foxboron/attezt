@@ -3,13 +3,14 @@ module github.com/foxboron/attezt
 go 1.25.5
 
 require (
-	github.com/foxboron/go-tpm-keyfiles v0.0.0-20250903184740-5d135037bd4d
-	github.com/google/go-tpm v0.9.7
+	github.com/foxboron/go-tpm-keyfiles v0.0.0-20260228154241-77b6888f575a
+	github.com/google/go-tpm v0.9.9-0.20260124013517-8f8f42cba0de
 	github.com/google/go-tpm-tools v0.4.4
 	github.com/rogpeppe/go-internal v1.14.1
+	github.com/smallstep/go-p11-kit v0.6.0
 	github.com/urfave/cli/v3 v3.6.2
 	github.com/varlink/go v0.4.0
-	golang.org/x/crypto v0.19.0
+	golang.org/x/crypto v0.48.0
 	zombiezen.com/go/sqlite v1.4.2
 )
 
@@ -20,8 +21,8 @@ require (
 	github.com/ncruces/go-strftime v0.1.9 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	golang.org/x/exp v0.0.0-20250408133849-7e4ce0ab07d0 // indirect
-	golang.org/x/sys v0.33.0 // indirect
-	golang.org/x/tools v0.33.0 // indirect
+	golang.org/x/sys v0.41.0 // indirect
+	golang.org/x/tools v0.41.0 // indirect
 	modernc.org/libc v1.65.7 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
