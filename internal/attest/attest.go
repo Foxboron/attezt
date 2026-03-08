@@ -18,12 +18,22 @@ import (
 	"github.com/google/go-tpm/tpm2/transport"
 )
 
+type AttestationConfig struct {
+	AKHandle *tpm2.NamedHandle
+	AKRsp    *tpm2.CreatePrimaryResponse
+	KeyAlg   tpm2.TPMAlgID
+	// TODO: Use this with the key
+	Name []byte
+}
+
 type Attestation struct {
 	TPMInfo      *TPMInfo
 	EKCerts      []*x509.Certificate
 	EKPub        crypto.PublicKey
 	AKCert       []byte
 	AttestParams *AttestationParameters
+	// Internal use
+	conf *AttestationConfig
 }
 
 // attestationRequest is the JSON serialized version of Attestation
@@ -54,22 +64,15 @@ func (a *Attestation) CreateCredential(secret []byte) (*AttestationResponse, err
 	}, nil
 }
 
-func (a *Attestation) ActivateCredentialWithAlg(rwc transport.TPMCloser, alg tpm2.TPMAlgID, cred tpm2.TPM2BIDObject, secret tpm2.TPM2BEncryptedSecret) ([]byte, error) {
-	// TODO: We should check that we are attesting ak and EK as we expect
-	akHandle, _, err := GetAK(rwc, alg)
-	if err != nil {
-		return nil, err
-	}
-	defer keyfile.FlushHandle(rwc, akHandle)
-
-	ekHandle, _, err := GetEK(rwc, alg)
+func (a *Attestation) ActivateCredentialWithAlg(rwc transport.TPMCloser, _ tpm2.TPMAlgID, cred tpm2.TPM2BIDObject, secret tpm2.TPM2BEncryptedSecret) ([]byte, error) {
+	ekHandle, _, err := GetEK(rwc, a.conf.KeyAlg)
 	if err != nil {
 		return nil, err
 	}
 	defer keyfile.FlushHandle(rwc, ekHandle.Handle)
 
 	ac, err := tpm2.ActivateCredential{
-		ActivateHandle: akHandle,
+		ActivateHandle: a.conf.AKHandle,
 		KeyHandle: tpm2.AuthHandle{
 			Handle: ekHandle.Handle,
 			Name:   ekHandle.Name,
@@ -85,7 +88,7 @@ func (a *Attestation) ActivateCredentialWithAlg(rwc transport.TPMCloser, alg tpm
 }
 
 func (a *Attestation) ActivateCredential(rwc transport.TPMCloser, cred tpm2.TPM2BIDObject, secret tpm2.TPM2BEncryptedSecret) ([]byte, error) {
-	return a.ActivateCredentialWithAlg(rwc, tpm2.TPMAlgRSA, cred, secret)
+	return a.ActivateCredentialWithAlg(rwc, 0, cred, secret)
 }
 
 func HashPub(b crypto.PublicKey) []byte {
@@ -102,6 +105,8 @@ func (a *Attestation) ekuri() string {
 }
 
 func (a *Attestation) EKPubHash() string {
+	// TODO: smallstep uses RFC 5280 4.2.1.2 to do this repsentation
+	// should probably do that as well.
 	return fmt.Sprintf("%x", HashPub(a.EKPub))
 }
 
@@ -163,17 +168,13 @@ func (a *Attestation) Verify() (bool, error) {
 	return a.AttestParams.Verify()
 }
 
-func NewAttestation(rwc transport.TPMCloser) (*Attestation, error) {
-	return NewAttestationWithAlg(rwc, tpm2.TPMAlgRSA)
-}
-
-func NewAttestationWithAlg(rwc transport.TPMCloser, alg tpm2.TPMAlgID) (*Attestation, error) {
-	ap, err := NewAttestationParametersWithAlg(rwc, alg)
+func NewAttestation(rwc transport.TPMCloser, conf *AttestationConfig) (*Attestation, error) {
+	ap, err := NewAttestationParametersWithAlg(rwc, conf)
 	if err != nil {
 		return nil, fmt.Errorf("failed getting attestation parameters: %w", err)
 	}
 
-	cert, err := GetEKCert(rwc, alg)
+	cert, err := GetEKCert(rwc, conf.KeyAlg)
 	if err != nil {
 		return nil, fmt.Errorf("failed getting endorsement key certificate: %w", err)
 	}
@@ -189,8 +190,13 @@ func NewAttestationWithAlg(rwc transport.TPMCloser, alg tpm2.TPMAlgID) (*Attesta
 		// TODO: Not used?
 		// AKCert:       []byte{},
 		AttestParams: ap,
-		// Internal stuff
+		// TODO: Refactor this
+		conf: conf,
 	}, nil
+}
+
+func (a *Attestation) Alg() tpm2.TPMAlgID {
+	return a.conf.KeyAlg
 }
 
 type AttestationParameters struct {
@@ -208,18 +214,11 @@ type attestationParameters struct {
 	CreateSignature         []byte `json:"createSignature,omitempty"`
 }
 
-func NewAttestationParametersWithAlg(rwc transport.TPMCloser, alg tpm2.TPMAlgID) (*AttestationParameters, error) {
-	akHandle, AKrsp, err := GetAK(rwc, alg)
+func NewAttestationParametersWithAlg(rwc transport.TPMCloser, conf *AttestationConfig) (*AttestationParameters, error) {
+	pub, err := conf.AKRsp.OutPublic.Contents()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("outpublic: %v", err)
 	}
-	defer keyfile.FlushHandle(rwc, akHandle)
-
-	pub, err := AKrsp.OutPublic.Contents()
-	if err != nil {
-		return nil, err
-	}
-
 	var inScheme tpm2.TPMTSigScheme
 
 	switch pub.Type {
@@ -249,47 +248,96 @@ func NewAttestationParametersWithAlg(rwc transport.TPMCloser, alg tpm2.TPMAlgID)
 
 	// TODO: hashed session
 	ccRsp, err := tpm2.CertifyCreation{
+		ObjectHandle: tpm2.NamedHandle{
+			Handle: conf.AKHandle.Handle,
+			Name:   conf.AKHandle.Name,
+		},
 		SignHandle: tpm2.AuthHandle{
-			Handle: akHandle.Handle,
-			Name:   akHandle.Name,
+			Handle: conf.AKHandle.Handle,
+			Name:   conf.AKHandle.Name,
 			Auth:   tpm2.PasswordAuth(nil),
 		},
-		ObjectHandle: tpm2.NamedHandle{
-			Handle: akHandle.Handle,
-			Name:   akHandle.Name,
-		},
-		CreationHash:   AKrsp.CreationHash,
-		CreationTicket: AKrsp.CreationTicket,
+		CreationHash:   conf.AKRsp.CreationHash,
+		CreationTicket: conf.AKRsp.CreationTicket,
 		InScheme:       inScheme,
 	}.Execute(rwc)
 	if err != nil {
-		return nil, err
-	}
-
-	akpub, err := AKrsp.OutPublic.Contents()
-	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("CertifyCreation: %v", err)
 	}
 
 	ca, err := ccRsp.CertifyInfo.Contents()
 	if err != nil {
 		return nil, err
 	}
-	creationData, err := AKrsp.CreationData.Contents()
+	creationData, err := conf.AKRsp.CreationData.Contents()
 	if err != nil {
 		return nil, err
 	}
 
 	return &AttestationParameters{
-		Public:            akpub,
+		Public:            pub,
 		CreateData:        creationData,
 		CreateAttestation: ca,
 		CreateSignature:   tpm2.Marshal(ccRsp.Signature),
 	}, nil
 }
 
-func NewAttestationParameters(rwc transport.TPMCloser) (*AttestationParameters, error) {
-	return NewAttestationParametersWithAlg(rwc, tpm2.TPMAlgRSA)
+func CertifyKey(rwc transport.TPMCloser, ak tpm2.NamedHandle, keyhandle tpm2.NamedHandle, pub *tpm2.TPMTPublic, data []byte) (*AttestationParameters, error) {
+	var inScheme tpm2.TPMTSigScheme
+
+	switch pub.Type {
+	case tpm2.TPMAlgECC:
+		inScheme = tpm2.TPMTSigScheme{
+			Scheme: tpm2.TPMAlgECDSA,
+			Details: tpm2.NewTPMUSigScheme(
+				tpm2.TPMAlgECDSA,
+				&tpm2.TPMSSchemeHash{
+					HashAlg: tpm2.TPMAlgSHA256,
+				},
+			),
+		}
+	case tpm2.TPMAlgRSA:
+		inScheme = tpm2.TPMTSigScheme{
+			Scheme: tpm2.TPMAlgRSASSA,
+			Details: tpm2.NewTPMUSigScheme(
+				tpm2.TPMAlgRSASSA,
+				&tpm2.TPMSSchemeHash{
+					HashAlg: tpm2.TPMAlgSHA256,
+				},
+			),
+		}
+	default:
+		return nil, fmt.Errorf("unsupported AK for CertifyCreation")
+	}
+
+	// TODO: hashed session
+	ccRsp, err := tpm2.Certify{
+		SignHandle: tpm2.AuthHandle{
+			Handle: ak.Handle,
+			Name:   ak.Name,
+			Auth:   tpm2.PasswordAuth(nil),
+		},
+		ObjectHandle: tpm2.NamedHandle{
+			Handle: keyhandle.Handle,
+			Name:   keyhandle.Name,
+		},
+		QualifyingData: tpm2.TPM2BData{Buffer: data},
+		InScheme:       inScheme,
+	}.Execute(rwc)
+	if err != nil {
+		return nil, fmt.Errorf("certify key: %v", err)
+	}
+
+	ca, err := ccRsp.CertifyInfo.Contents()
+	if err != nil {
+		return nil, err
+	}
+
+	return &AttestationParameters{
+		Public:            pub,
+		CreateAttestation: ca,
+		CreateSignature:   tpm2.Marshal(ccRsp.Signature),
+	}, nil
 }
 
 func verifySignature(pub *tpm2.TPMTPublic, b []byte, sig *tpm2.TPMTSignature) (bool, error) {

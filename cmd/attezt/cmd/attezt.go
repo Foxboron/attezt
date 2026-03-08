@@ -7,10 +7,12 @@ import (
 	"log"
 	"os"
 
+	"github.com/foxboron/attezt/internal/attest"
 	"github.com/foxboron/attezt/internal/certs"
 	tt "github.com/foxboron/attezt/internal/transport"
 	"github.com/foxboron/attezt/internal/varlink"
 	"github.com/foxboron/attezt/internal/varlink/devatteztserver"
+	keyfile "github.com/foxboron/go-tpm-keyfiles"
 	"github.com/urfave/cli/v3"
 )
 
@@ -137,9 +139,9 @@ var (
 		Commands: []*cli.Command{
 			{
 				Name:  "ak",
-				Usage: "create a signed attestation key",
+				Usage: "create a signed applicationkey",
 				Action: func(ctx context.Context, cmd *cli.Command) error {
-					log.Println("Requesting an attestation key...")
+					log.Println("Requesting an application key...")
 
 					rwc, err := tt.GetTPM()
 					if err != nil {
@@ -147,8 +149,28 @@ var (
 					}
 					defer rwc.Close()
 
-					c := NewClient("http://127.0.0.1:8080")
-					certs, err := c.GetAttestWithAlg(rwc, TPMALG)
+					c := attest.NewClient("http://127.0.0.1:8080")
+
+					// Turn into signer
+					akHandle, akrsp, err := attest.GetAK(rwc, TPMALG)
+					if err != nil {
+						return err
+					}
+					defer keyfile.FlushHandle(rwc, akHandle)
+
+					aconf := &attest.AttestationConfig{
+						AKHandle: akHandle,
+						AKRsp:    akrsp,
+						KeyAlg:   TPMALG,
+						Name:     []byte("app-test"),
+					}
+
+					att, err := attest.NewAttestation(rwc, aconf)
+					if err != nil {
+						return err
+					}
+
+					certs, err := c.GetAttestWithAlg(rwc, att)
 					if err != nil {
 						log.Fatal(err)
 					}

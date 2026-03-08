@@ -9,6 +9,7 @@ import (
 	"github.com/foxboron/attezt/internal/attest"
 	"github.com/foxboron/attezt/internal/inventory/sqlite"
 	tt "github.com/foxboron/attezt/internal/transport"
+	keyfile "github.com/foxboron/go-tpm-keyfiles"
 	"github.com/google/go-tpm/tpm2"
 	"github.com/rogpeppe/go-internal/testscript"
 )
@@ -30,7 +31,20 @@ func TestMain(m *testing.M) {
 			}
 			defer rwc.Close()
 
-			a, err := attest.NewAttestationWithAlg(rwc, tpm2.TPMAlgECC)
+			akHandle, akrsp, err := attest.GetAK(rwc, tpm2.TPMAlgECC)
+			if err != nil {
+				log.Fatal(err)
+			}
+			defer keyfile.FlushHandle(rwc, akHandle)
+
+			aconf := &attest.AttestationConfig{
+				AKHandle: akHandle,
+				AKRsp:    akrsp,
+				KeyAlg:   tpm2.TPMAlgECC,
+				Name:     []byte("app-test"),
+			}
+
+			a, err := attest.NewAttestation(rwc, aconf)
 			if err != nil {
 				log.Fatal(err)
 			}

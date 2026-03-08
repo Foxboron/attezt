@@ -6,11 +6,13 @@ import (
 	encasn1 "encoding/asn1"
 	"encoding/json"
 	"encoding/pem"
+	"log"
 	"testing"
 
 	"golang.org/x/crypto/cryptobyte/asn1"
 
 	"github.com/foxboron/attezt/internal/attest"
+	keyfile "github.com/foxboron/go-tpm-keyfiles"
 	"github.com/google/go-tpm/tpm2"
 	"github.com/google/go-tpm/tpm2/transport/simulator"
 	"golang.org/x/crypto/cryptobyte"
@@ -31,7 +33,20 @@ func TestAttestationParameters_Verify(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			a, err := attest.NewAttestationParametersWithAlg(rwc, tpm2.TPMAlgECC)
+			akHandle, akrsp, err := attest.GetAK(rwc, tpm2.TPMAlgECC)
+			if err != nil {
+				log.Fatal(err)
+			}
+			defer keyfile.FlushHandle(rwc, akHandle)
+
+			aconf := &attest.AttestationConfig{
+				AKHandle: akHandle,
+				AKRsp:    akrsp,
+				KeyAlg:   tpm2.TPMAlgECC,
+				Name:     []byte("app-test"),
+			}
+
+			a, err := attest.NewAttestationParametersWithAlg(rwc, aconf)
 			if err != nil {
 				t.Fatalf("could not construct receiver type: %v", err)
 			}

@@ -3,6 +3,7 @@ package attest_test
 import (
 	"bytes"
 	"crypto/rand"
+	"log"
 	"testing"
 
 	"github.com/foxboron/attezt/internal/attest"
@@ -18,7 +19,20 @@ func TestEncap(t *testing.T) {
 	}
 	defer rwc.Close()
 
-	ap, err := attest.NewAttestationParametersWithAlg(rwc, tpm2.TPMAlgECC)
+	akHandle, akrsp, err := attest.GetAK(rwc, tpm2.TPMAlgECC)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer keyfile.FlushHandle(rwc, akHandle)
+
+	aconf := &attest.AttestationConfig{
+		AKHandle: akHandle,
+		AKRsp:    akrsp,
+		KeyAlg:   tpm2.TPMAlgECC,
+		Name:     []byte("app-test"),
+	}
+
+	ap, err := attest.NewAttestationParametersWithAlg(rwc, aconf)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,12 +54,6 @@ func TestEncap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	akHandle, _, err := attest.GetAK(rwc, tpm2.TPMAlgECC)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer keyfile.FlushHandle(rwc, akHandle)
 
 	ekHandle, _, err := attest.GetEK(rwc, tpm2.TPMAlgECC)
 	if err != nil {

@@ -1,12 +1,14 @@
 package sqlite_test
 
 import (
+	"log"
 	"path"
 	"testing"
 
 	"github.com/foxboron/attezt/internal/attest"
 	"github.com/foxboron/attezt/internal/inventory/sqlite"
 	"github.com/foxboron/attezt/internal/transport"
+	keyfile "github.com/foxboron/go-tpm-keyfiles"
 	"github.com/google/go-tpm/tpm2"
 )
 
@@ -17,7 +19,19 @@ func TestSqlite(t *testing.T) {
 	}
 	defer rwc.Close()
 
-	a, err := attest.NewAttestationWithAlg(rwc, tpm2.TPMAlgECC)
+	akHandle, akrsp, err := attest.GetAK(rwc, tpm2.TPMAlgECC)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer keyfile.FlushHandle(rwc, akHandle)
+
+	aconf := &attest.AttestationConfig{
+		AKHandle: akHandle,
+		AKRsp:    akrsp,
+		KeyAlg:   tpm2.TPMAlgECC,
+		Name:     []byte("app-test"),
+	}
+	a, err := attest.NewAttestation(rwc, aconf)
 	if err != nil {
 		t.Fatal(err)
 	}
