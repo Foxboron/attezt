@@ -179,11 +179,14 @@ func NewAttestation(rwc transport.TPMCloser, conf *AttestationConfig) (*Attestat
 		return nil, fmt.Errorf("failed getting endorsement key certificate: %w", err)
 	}
 
+	tpminfo, err := NewTPMInfo(rwc)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Attestation{
 		// TODO: Fill the information, but I don't think anything read this
-		TPMInfo: &TPMInfo{
-			FirmwareVersion: "test",
-		},
+		TPMInfo: tpminfo,
 		// TODO: This should be ECC and RSA certs
 		EKCerts: []*x509.Certificate{cert},
 		EKPub:   cert.PublicKey,
