@@ -6,6 +6,7 @@ import (
 	encasn1 "encoding/asn1"
 	"encoding/json"
 	"encoding/pem"
+	"fmt"
 	"log"
 	"testing"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/foxboron/attezt/internal/attest"
 	keyfile "github.com/foxboron/go-tpm-keyfiles"
 	"github.com/google/go-tpm/tpm2"
+	"github.com/google/go-tpm/tpm2/transport/linuxtpm"
 	"github.com/google/go-tpm/tpm2/transport/simulator"
 	"golang.org/x/crypto/cryptobyte"
 )
@@ -150,4 +152,31 @@ func TestCertifyAttestationJSON(t *testing.T) {
 	if !ok {
 		t.Fatalf("failed to verify json blob")
 	}
+}
+
+func TestEKFingerprint(t *testing.T) {
+	rwc, err := linuxtpm.Open("/dev/tpmrm0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rwc.Close()
+
+	akHandle, akrsp, err := attest.GetAK(rwc, tpm2.TPMAlgECC)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer keyfile.FlushHandle(rwc, akHandle)
+
+	aconf := &attest.AttestationConfig{
+		AKHandle: akHandle,
+		AKRsp:    akrsp,
+		KeyAlg:   tpm2.TPMAlgECC,
+		Name:     []byte("app-test"),
+	}
+
+	a, err := attest.NewAttestation(rwc, aconf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fmt.Println(a.EKPubHash())
 }
