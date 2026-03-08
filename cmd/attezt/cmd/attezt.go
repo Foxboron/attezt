@@ -10,7 +10,7 @@ import (
 	"github.com/foxboron/attezt/internal/certs"
 	tt "github.com/foxboron/attezt/internal/transport"
 	"github.com/foxboron/attezt/internal/varlink"
-	"github.com/foxboron/attezt/internal/varlink/devattezt"
+	"github.com/foxboron/attezt/internal/varlink/devatteztserver"
 	"github.com/urfave/cli/v3"
 )
 
@@ -55,7 +55,7 @@ var (
 						log.Fatal(err)
 					}
 					defer conn.Close()
-					devs, err := devattezt.ListDevices().Call(ctx, conn)
+					devs, err := devatteztserver.ListDevices().Call(ctx, conn)
 					if err != nil {
 						log.Fatal(err)
 					}
@@ -79,7 +79,7 @@ var (
 						log.Fatal(err)
 					}
 					defer conn.Close()
-					dev, err := devattezt.GetDevice().Call(ctx, conn, cmd.StringArg("device"))
+					dev, err := devatteztserver.GetDevice().Call(ctx, conn, cmd.StringArg("device"))
 					if err != nil {
 						log.Fatal(err)
 					}
@@ -101,7 +101,7 @@ var (
 						log.Fatal(err)
 					}
 					defer conn.Close()
-					if err := devattezt.Enroll().Call(ctx, conn, cmd.StringArg("device")); err != nil {
+					if err := devatteztserver.Enroll().Call(ctx, conn, cmd.StringArg("device")); err != nil {
 						log.Fatal(err)
 					}
 					return nil
@@ -121,7 +121,7 @@ var (
 						log.Fatal(err)
 					}
 					defer conn.Close()
-					if err := devattezt.Remove().Call(ctx, conn, cmd.StringArg("device")); err != nil {
+					if err := devatteztserver.Remove().Call(ctx, conn, cmd.StringArg("device")); err != nil {
 						log.Fatal(err)
 					}
 					return nil

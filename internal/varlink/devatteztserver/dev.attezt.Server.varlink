@@ -1,4 +1,4 @@
-interface dev.attezt
+interface dev.attezt.Server
 
 type Device (
   ekcert: string

@@ -10,12 +10,12 @@ import (
 )
 
 // Create the bindings
-//go:generate go tool varlink-go-interface-generator devattezt/dev.attezt.varlink
+//go:generate go tool varlink-go-interface-generator devatteztserver/dev.attezt.Server.varlink
 
 func NewVarlinkServer(address string, backend inventory.Inventory) (*varlink.Service, error) {
 	service, err := varlink.NewService(
 		"attezt",
-		"attezt",
+		"Server",
 		"1",
 		"https://github.com/foxboron/attezt",
 	)
