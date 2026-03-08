@@ -1,0 +1,13 @@
+interface dev.attezt.Agent
+
+type Status (
+  ek: string,
+  enrolled: bool,
+  acmeServer: string,
+  attestationServer: string
+)
+
+method GetStatus() -> (status: Status)
+method EnrollDevice() -> ()
+method GetCetificate() -> ()
+method RenewCertificate() -> ()

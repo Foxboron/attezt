@@ -2,17 +2,31 @@ package attezt
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/sha256"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/foxboron/attezt/internal/attest"
+	aacme "github.com/foxboron/attezt/internal/acme"
+	"github.com/foxboron/attezt/internal/agent"
+	"github.com/foxboron/attezt/internal/agent/devatteztagent"
+
 	"github.com/foxboron/attezt/internal/certs"
 	tt "github.com/foxboron/attezt/internal/transport"
 	"github.com/foxboron/attezt/internal/varlink"
 	"github.com/foxboron/attezt/internal/varlink/devatteztserver"
 	keyfile "github.com/foxboron/go-tpm-keyfiles"
+	"github.com/google/go-tpm/tpm2"
+	"github.com/mholt/acmez/v3"
+	"github.com/mholt/acmez/v3/acme"
 	"github.com/urfave/cli/v3"
 )
 
@@ -192,6 +206,173 @@ var (
 					return nil
 				},
 			},
+			{
+				Name:  "cert",
+				Usage: "create a device certificate",
+				Action: func(ctx context.Context, cmd *cli.Command) error {
+					log.Println("Requesting an attestation key...")
+
+					rwc, err := tt.GetTPM()
+					if err != nil {
+						log.Fatal(err)
+					}
+					defer rwc.Close()
+
+					subject := "framework"
+					atteztServer := "http://attezt.local:8080"
+					acmeServer := "https://ca.home.arpa/acme/acme-da/directory"
+
+					privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+					if err != nil {
+						return err
+					}
+
+					account := acme.Account{
+						TermsOfServiceAgreed: true,
+						PrivateKey:           privateKey,
+					}
+
+					client := acmez.Client{
+						Client: &acme.Client{
+							Directory: acmeServer,
+						},
+					}
+					account, err = client.NewAccount(ctx, account)
+					if err != nil {
+						return err
+					}
+
+					t := time.Now()
+					tafter := t.Add(24 * time.Hour)
+					order := acme.Order{
+						Identifiers: []acme.Identifier{{
+							Type:  "permanent-identifier",
+							Value: subject,
+						}},
+						NotBefore: &t,
+						NotAfter:  &tafter,
+					}
+
+					order, err = client.NewOrder(ctx, account, order)
+					if err != nil {
+						return err
+					}
+
+					url := order.Authorizations[0]
+
+					authz, err := client.GetAuthorization(ctx, account, url)
+					if err != nil {
+						return err
+					}
+
+					challenge := authz.Challenges[0]
+
+					TPMALG := tpm2.TPMAlgRSA
+					// TPM CHALLENGE RESLOUTION HERE
+					c := attest.NewClient(atteztServer)
+
+					// Turn into signer
+					akHandle, akrsp, err := attest.GetAK(rwc, TPMALG)
+					if err != nil {
+						return err
+					}
+					defer keyfile.FlushHandle(rwc, akHandle)
+
+					s, err := account.Thumbprint()
+					if err != nil {
+						return err
+					}
+					data := fmt.Sprintf("%s.%s", challenge.Token, s)
+					hashedData := sha256.Sum256([]byte(data))
+
+					aconf := &attest.AttestationConfig{
+						AKHandle: akHandle,
+						AKRsp:    akrsp,
+						KeyAlg:   TPMALG,
+						Name:     []byte("app-test"),
+					}
+
+					att, err := attest.NewAttestation(rwc, aconf)
+					if err != nil {
+						return err
+					}
+
+					fmt.Println(att.EKPubHash())
+					certs, err := c.GetAttestWithAlg(rwc, att)
+					if err != nil {
+						log.Fatal(err)
+					}
+
+					// Create a new key and attest with AK
+					key, _, err := keyfile.NewLoadableKeyWithResponse(rwc, TPMALG, 256, []byte(""))
+					if err != nil {
+						return err
+					}
+
+					keyhandle, parenthandle, err := keyfile.LoadKey(keyfile.NewTPMSession(rwc), key, []byte(nil))
+					if err != nil {
+						return err
+					}
+
+					tkey, err := key.Pubkey.Contents()
+					if err != nil {
+						return err
+					}
+
+					// Certify the creation of it by loading it
+					dkattestparams, err := attest.CertifyKey(rwc, *aconf.AKHandle, tpm2.NamedHandle{Handle: keyhandle.Handle, Name: keyhandle.Name}, tkey, hashedData[:])
+					if err != nil {
+						return err
+					}
+
+					// TODO: Cerify should be part of go-tpm-keys
+					// Flush before Signer
+					// else we'll run out of memory
+					keyfile.FlushHandle(rwc, keyhandle)
+					keyfile.FlushHandle(rwc, parenthandle)
+
+					payloadBytes, err := aacme.CreateAttestationPayload(certs, aconf.KeyAlg, dkattestparams)
+					if err != nil {
+						return err
+					}
+					challenge.Payload = payloadBytes
+
+					csr := &x509.CertificateRequest{
+						Subject: pkix.Name{
+							CommonName: subject,
+						},
+					}
+
+					signer, err := key.Signer(rwc, []byte(""), []byte(""))
+					if err != nil {
+						return err
+					}
+					csrbytes, err := x509.CreateCertificateRequest(rand.Reader, csr, signer)
+					if err != nil {
+						return fmt.Errorf("create certificate request: %v", err)
+					}
+
+					// STOP TPM
+
+					challenge, err = client.InitiateChallenge(ctx, account, challenge)
+					if err != nil {
+						return fmt.Errorf("initiating challenge %q: %v", challenge.URL, err)
+					}
+
+					order, err = client.FinalizeOrder(ctx, account, order, csrbytes)
+					if err != nil {
+						return err
+					}
+
+					certChains, err := client.GetCertificateChain(ctx, account, order.Certificate)
+					if err != nil {
+						return fmt.Errorf("downloading certs: %v", err)
+					}
+
+					fmt.Println(certChains)
+					return nil
+				},
+			},
 		},
 	}
 
@@ -199,9 +380,51 @@ var (
 	cmd = &cli.Command{
 		Name:    "attezt",
 		Version: "v0.0.0",
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:  "varlink",
+				Value: "/run/attezt/dev.attezt.Agent",
+				Usage: "address for varlink agent",
+			},
+		},
 		Commands: []*cli.Command{
 			caCmdNew,
 			certificateCmdNew,
+			{
+				Name: "status",
+				Action: func(ctx context.Context, cmd *cli.Command) error {
+					conn, err := agent.NewClient(cmd.String("varlink"))
+					if err != nil {
+						return err
+					}
+					defer conn.Close()
+					status, err := devatteztagent.GetStatus().Call(ctx, conn)
+					if err != nil {
+						return err
+					}
+					fmt.Printf("Status:\n")
+					fmt.Printf("    Endorsement Key: %s\n", status.Ek)
+					fmt.Printf("  Enrollment status: %t\n", status.Enrolled)
+					fmt.Printf("        ACME Server: %s\n", status.AcmeServer)
+					fmt.Printf(" Attestation Server: %s\n", status.AttestationServer)
+					return nil
+				},
+			},
+			{
+				Name: "enroll",
+				Action: func(ctx context.Context, cmd *cli.Command) error {
+					conn, err := agent.NewClient(cmd.String("varlink"))
+					if err != nil {
+						return err
+					}
+					defer conn.Close()
+					err = devatteztagent.EnrollDevice().Call(ctx, conn)
+					if err != nil {
+						return err
+					}
+					return nil
+				},
+			},
 		},
 	}
 )

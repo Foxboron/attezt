@@ -1,162 +1,96 @@
 package main
 
 import (
-	"crypto/x509"
-	"encoding/json"
-	"encoding/pem"
+	"context"
+	"errors"
 	"log"
-	"net"
 	"os"
-	"path/filepath"
+	"os/signal"
+	"syscall"
 
-	keyfile "github.com/foxboron/go-tpm-keyfiles"
-	"github.com/google/go-tpm/tpm2"
+	"github.com/foxboron/attezt/internal/agent"
 	"github.com/google/go-tpm/tpm2/transport/linuxtpm"
-	"github.com/smallstep/go-p11-kit/p11kit"
+
+	"github.com/urfave/cli/v3"
 )
 
-type TPMObj struct {
-	Data []byte `json:"data"`
-}
+// Main command
+var cmd = &cli.Command{
+	Name:    "attezt-agent",
+	Version: "v0.0.0",
+	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name:  "varlink",
+			Value: "/run/attezt/dev.attezt.Agent",
+			Usage: "address for varlink socket",
+		},
+		&cli.StringFlag{
+			Name:  "p11kit",
+			Value: "/run/attezt/p11kit.socket",
+			Usage: "address for p11kit socket",
+		},
+		&cli.StringFlag{
+			Name:  "state-dir",
+			Value: "/var/lib/attezt",
+			Usage: "state location for attezt",
+		},
+	},
+	Action: func(ctx context.Context, cmd *cli.Command) error {
+		rwc, err := linuxtpm.Open("/dev/tpmrm0")
+		if err != nil {
+			return err
+		}
+		defer rwc.Close()
+		log.Printf("p11kit-server is running\n")
+		log.Printf("export P11_KIT_SERVER_ADDRESS=unix:path=%s", cmd.String("p11kit"))
+		log.Printf("varlink service is running")
+		log.Printf("Running at: %s", cmd.String("varlink"))
 
-type TPMKey struct {
-	Private []byte `json:"KeyBlob"`
-	Public  []byte `json:"Public"`
-}
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		a, err := agent.NewAtteztAgent(ctx, rwc, cmd.String("varlink"), cmd.String("p11kit"), cmd.String("state-dir"))
+		if err != nil {
+			return err
+		}
 
-func TPMObjToKey(b []byte) (*keyfile.TPMKey, error) {
-	var t TPMObj
-	if err := json.Unmarshal(b, &t); err != nil {
-		return nil, err
-	}
+		defer func() {
+			if err := a.Close(); err != nil {
+				log.Fatal(err)
+			}
+		}()
 
-	var tkey TPMKey
-	if err := json.Unmarshal(t.Data, &tkey); err != nil {
-		return nil, err
-	}
+		fsroot, err := os.OpenRoot(cmd.String("state-dir"))
+		if err != nil {
+			return err
+		}
 
-	pub2b := tpm2.BytesAs2B[tpm2.TPMTPublic](tkey.Public)
-	priv2b := tpm2.TPM2BPrivate{Buffer: tkey.Private}
+		// Try to load device certs if we have them
+		_, err1 := fsroot.Stat("device.crt")
+		_, err2 := fsroot.Stat("device.tss")
+		if err := errors.Join(err1, err2); !errors.Is(err, os.ErrNotExist) {
+			keyb, err := fsroot.ReadFile("device.tss")
+			if err != nil {
+				return err
+			}
+			crtb, err := fsroot.ReadFile("device.crt")
+			if err != nil {
+				return err
+			}
+			if err := a.LoadKeys(keyb, crtb); err != nil {
+				return err
+			}
+		}
 
-	return keyfile.NewTPMKey(
-		keyfile.OIDLoadableKey,
-		pub2b, priv2b,
-		keyfile.WithParent(tpm2.TPMHandle(0x81000001)),
-	), nil
+		sigint := make(chan os.Signal, 1)
+		signal.Notify(sigint, syscall.SIGINT, syscall.SIGTERM)
+		<-sigint
+		cancel()
+		return nil
+	},
 }
 
 func main() {
-	rwc, err := linuxtpm.Open("/dev/tpmrm0")
-	if err != nil {
+	if err := cmd.Run(context.Background(), os.Args); err != nil {
 		log.Fatal(err)
-	}
-	defer rwc.Close()
-
-	b, err := os.ReadFile("device.crt")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	var certs []*x509.Certificate
-	block := b
-	for {
-		p, rest := pem.Decode(block)
-		if p == nil {
-			break
-		}
-		if p.Type == "CERTIFICATE" {
-			cert, err := x509.ParseCertificate(p.Bytes)
-			if err != nil {
-				log.Fatal(err)
-			} else {
-				certs = append(certs, cert)
-			}
-		}
-		block = rest
-		if len(block) == 0 {
-			break
-		}
-	}
-
-	// Top certificate is ours, 2nd is the intermediate root
-	c := certs[0]
-
-	tpmobjb, err := os.ReadFile("key-device.tpmobj")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	tpmkey, err := TPMObjToKey(tpmobjb)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	signer, err := tpmkey.Signer(rwc, []byte(""), []byte(""))
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	obj, err := p11kit.NewPrivateKeyObject(signer)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	if err := obj.SetCertificate(c); err != nil {
-		log.Fatal(err)
-	}
-	obj.SetLabel("Attezt TPM key")
-
-	certobj, err := p11kit.NewX509CertificateObject(c)
-	if err != nil {
-		log.Fatal(err)
-	}
-	certobj.SetLabel("Attezt TPM Certificate")
-
-	objs := []p11kit.Object{certobj, obj}
-
-	slot := p11kit.Slot{
-		ID:              0x01,
-		Description:     "Attezt Attestation Agent",
-		Label:           "Attestation Trust",
-		Manufacturer:    "attezt",
-		Model:           "attezt-agent",
-		Serial:          "12345678",
-		HardwareVersion: p11kit.Version{Major: 0, Minor: 1},
-		FirmwareVersion: p11kit.Version{Major: 0, Minor: 1},
-		Objects:         objs,
-	}
-
-	handler := p11kit.Handler{
-		Manufacturer:   "attezt",
-		Library:        "attezt-agent",
-		LibraryVersion: p11kit.Version{Major: 0, Minor: 1},
-		Slots:          []p11kit.Slot{slot},
-	}
-
-	dir, _ := os.Getwd()
-	path := filepath.Join(dir, "p11kit.sock")
-	defer os.RemoveAll(path)
-
-	l, err := net.Listen("unix", path)
-	if err != nil {
-		log.Fatalf("listening on %s: %v", path, err)
-	}
-	defer l.Close()
-
-	log.Printf("export P11_KIT_SERVER_ADDRESS=unix:path=%s", path)
-
-	for {
-		conn, err := l.Accept()
-		if err != nil {
-			log.Printf("cannot accept, %v", err)
-			continue
-		}
-
-		go func() {
-			if err := handler.Handle(conn); err != nil {
-				log.Printf("cannot handle request, %v", err)
-			}
-			conn.Close()
-		}()
 	}
 }
