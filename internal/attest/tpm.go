@@ -3,6 +3,7 @@ package attest
 import (
 	"crypto"
 	"crypto/x509"
+	"fmt"
 
 	"github.com/google/go-tpm/tpm2"
 	"github.com/google/go-tpm/tpm2/transport"
@@ -127,12 +128,15 @@ var (
 )
 
 func GetAK(rwc transport.TPMCloser, alg tpm2.TPMAlgID) (*tpm2.NamedHandle, *tpm2.CreatePrimaryResponse, error) {
+	// TODO: This should create the AK under the SRK, with the name as input
 	var tpublic tpm2.TPMTPublic
 	switch alg {
 	case tpm2.TPMAlgECC:
 		tpublic = ECCAKTemplate
 	case tpm2.TPMAlgRSA:
 		tpublic = RSAAKTemplate
+	default:
+		return nil, nil, fmt.Errorf("no alg passed")
 	}
 	akRsp, err := tpm2.CreatePrimary{
 		PrimaryHandle: tpm2.TPMRHEndorsement,
