@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"log"
 
@@ -51,23 +52,30 @@ func (a *AgentVarlinkHandler) GetStatus(ctx context.Context, c devatteztagent.Va
 
 func (a *AgentVarlinkHandler) EnrollDevice(ctx context.Context, c devatteztagent.VarlinkCall) error {
 	log.Println("called enrolldevice")
-	err := a.agent.GetCertificate()
-	if err != nil {
+	log.Println("acquiring a new certificate")
+	if err := a.agent.ProvisionCertificate(); err != nil {
 		log.Println(err)
-		c.ReplyError(ctx, "dev.attezt.Agent.Error", nil)
+		return c.ReplyError(ctx, "dev.attezt.Agent.Error", nil)
 	}
 	log.Println("acquired new certificate")
 	log.Println("enrolled device")
 	return c.ReplyEnrollDevice(ctx)
 }
 
-func (a *AgentVarlinkHandler) GetCetificate(ctx context.Context, c devatteztagent.VarlinkCall) error {
+func (a *AgentVarlinkHandler) GetCertificate(ctx context.Context, c devatteztagent.VarlinkCall) error {
 	log.Println("called getcertificate")
-	return c.ReplyGetCetificate(ctx)
+	var ret devatteztagent.CertificateChain
+	device, intermediate := a.agent.GetCertificate()
+	ret.Device = base64.StdEncoding.EncodeToString(device.Raw)
+	ret.Intermediate = base64.StdEncoding.EncodeToString(intermediate.Raw)
+	return c.ReplyGetCertificate(ctx, ret)
 }
 
 func (a *AgentVarlinkHandler) RenewCertificate(ctx context.Context, c devatteztagent.VarlinkCall) error {
 	log.Println("called renew")
+	if err := a.agent.ProvisionCertificate(); err != nil {
+		return c.ReplyError(ctx, "dev.attezt.Agent.Error", nil)
+	}
 	return c.ReplyRenewCertificate(ctx)
 }
 

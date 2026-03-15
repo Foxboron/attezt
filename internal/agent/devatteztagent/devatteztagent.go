@@ -16,6 +16,11 @@ type Status struct {
 	AttestationServer string `json:"attestationServer"`
 }
 
+type CertificateChain struct {
+	Device       string `json:"device"`
+	Intermediate string `json:"intermediate"`
+}
+
 func Dispatch_Error(err error) error {
 	if e, ok := err.(*varlink.Error); ok {
 		switch e.Name {
@@ -120,45 +125,53 @@ func (m EnrollDevice_methods) Upgrade(ctx context.Context, c *varlink.Connection
 	}, nil
 }
 
-type GetCetificate_methods struct{}
+type GetCertificate_methods struct{}
 
-func GetCetificate() GetCetificate_methods { return GetCetificate_methods{} }
+func GetCertificate() GetCertificate_methods { return GetCertificate_methods{} }
 
-func (m GetCetificate_methods) Call(ctx context.Context, c *varlink.Connection) (err_ error) {
+func (m GetCertificate_methods) Call(ctx context.Context, c *varlink.Connection) (chain_out_ CertificateChain, err_ error) {
 	receive, err_ := m.Send(ctx, c, 0)
 	if err_ != nil {
 		return
 	}
-	_, err_ = receive(ctx)
+	chain_out_, _, err_ = receive(ctx)
 	return
 }
 
-func (m GetCetificate_methods) Send(ctx context.Context, c *varlink.Connection, flags uint64) (func(ctx context.Context) (uint64, error), error) {
-	receive, err := c.Send(ctx, "dev.attezt.Agent.GetCetificate", nil, flags)
+func (m GetCertificate_methods) Send(ctx context.Context, c *varlink.Connection, flags uint64) (func(ctx context.Context) (CertificateChain, uint64, error), error) {
+	receive, err := c.Send(ctx, "dev.attezt.Agent.GetCertificate", nil, flags)
 	if err != nil {
 		return nil, err
 	}
-	return func(context.Context) (flags uint64, err error) {
-		flags, err = receive(ctx, nil)
+	return func(context.Context) (chain_out_ CertificateChain, flags uint64, err error) {
+		var out struct {
+			Chain CertificateChain `json:"chain"`
+		}
+		flags, err = receive(ctx, &out)
 		if err != nil {
 			err = Dispatch_Error(err)
 			return
 		}
+		chain_out_ = out.Chain
 		return
 	}, nil
 }
 
-func (m GetCetificate_methods) Upgrade(ctx context.Context, c *varlink.Connection) (func(ctx context.Context) (flags uint64, conn varlink.ReadWriterContext, err_ error), error) {
-	receive, err := c.Upgrade(ctx, "dev.attezt.Agent.GetCetificate", nil)
+func (m GetCertificate_methods) Upgrade(ctx context.Context, c *varlink.Connection) (func(ctx context.Context) (chain_out_ CertificateChain, flags uint64, conn varlink.ReadWriterContext, err_ error), error) {
+	receive, err := c.Upgrade(ctx, "dev.attezt.Agent.GetCertificate", nil)
 	if err != nil {
 		return nil, err
 	}
-	return func(context.Context) (flags uint64, conn varlink.ReadWriterContext, err error) {
-		flags, conn, err = receive(ctx, nil)
+	return func(context.Context) (chain_out_ CertificateChain, flags uint64, conn varlink.ReadWriterContext, err error) {
+		var out struct {
+			Chain CertificateChain `json:"chain"`
+		}
+		flags, conn, err = receive(ctx, &out)
 		if err != nil {
 			err = Dispatch_Error(err)
 			return
 		}
+		chain_out_ = out.Chain
 		return
 	}, nil
 }
@@ -211,7 +224,7 @@ func (m RenewCertificate_methods) Upgrade(ctx context.Context, c *varlink.Connec
 type devatteztagentInterface interface {
 	GetStatus(ctx context.Context, c VarlinkCall) error
 	EnrollDevice(ctx context.Context, c VarlinkCall) error
-	GetCetificate(ctx context.Context, c VarlinkCall) error
+	GetCertificate(ctx context.Context, c VarlinkCall) error
 	RenewCertificate(ctx context.Context, c VarlinkCall) error
 }
 
@@ -235,8 +248,12 @@ func (c *VarlinkCall) ReplyEnrollDevice(ctx context.Context) error {
 	return c.Reply(ctx, nil)
 }
 
-func (c *VarlinkCall) ReplyGetCetificate(ctx context.Context) error {
-	return c.Reply(ctx, nil)
+func (c *VarlinkCall) ReplyGetCertificate(ctx context.Context, chain_ CertificateChain) error {
+	var out struct {
+		Chain CertificateChain `json:"chain"`
+	}
+	out.Chain = chain_
+	return c.Reply(ctx, &out)
 }
 
 func (c *VarlinkCall) ReplyRenewCertificate(ctx context.Context) error {
@@ -253,8 +270,8 @@ func (s *VarlinkInterface) EnrollDevice(ctx context.Context, c VarlinkCall) erro
 	return c.ReplyMethodNotImplemented(ctx, "dev.attezt.Agent.EnrollDevice")
 }
 
-func (s *VarlinkInterface) GetCetificate(ctx context.Context, c VarlinkCall) error {
-	return c.ReplyMethodNotImplemented(ctx, "dev.attezt.Agent.GetCetificate")
+func (s *VarlinkInterface) GetCertificate(ctx context.Context, c VarlinkCall) error {
+	return c.ReplyMethodNotImplemented(ctx, "dev.attezt.Agent.GetCertificate")
 }
 
 func (s *VarlinkInterface) RenewCertificate(ctx context.Context, c VarlinkCall) error {
@@ -271,8 +288,8 @@ func (s *VarlinkInterface) VarlinkDispatch(ctx context.Context, call varlink.Cal
 	case "EnrollDevice":
 		return s.devatteztagentInterface.EnrollDevice(ctx, VarlinkCall{call})
 
-	case "GetCetificate":
-		return s.devatteztagentInterface.GetCetificate(ctx, VarlinkCall{call})
+	case "GetCertificate":
+		return s.devatteztagentInterface.GetCertificate(ctx, VarlinkCall{call})
 
 	case "RenewCertificate":
 		return s.devatteztagentInterface.RenewCertificate(ctx, VarlinkCall{call})
@@ -300,9 +317,14 @@ type Status (
   attestationServer: string
 )
 
+type CertificateChain (
+  device: string,
+  intermediate: string
+) 
+
 method GetStatus() -> (status: Status)
 method EnrollDevice() -> ()
-method GetCetificate() -> ()
+method GetCertificate() -> (chain: CertificateChain)
 method RenewCertificate() -> ()
 `
 }

@@ -121,7 +121,11 @@ func (a *AtteztAgent) Close() error {
 	return err
 }
 
-func (a *AtteztAgent) GetCertificate() error {
+func (a *AtteztAgent) GetCertificate() (deviceCrt *x509.Certificate, intermediateCrt *x509.Certificate) {
+	return a.obj.deviceCrt, a.obj.intermdiateCrt
+}
+
+func (a *AtteztAgent) ProvisionCertificate() error {
 	subject, err := os.Hostname()
 	if err != nil {
 		return err

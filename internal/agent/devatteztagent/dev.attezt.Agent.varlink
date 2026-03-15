@@ -7,7 +7,12 @@ type Status (
   attestationServer: string
 )
 
+type CertificateChain (
+  device: string,
+  intermediate: string
+) 
+
 method GetStatus() -> (status: Status)
 method EnrollDevice() -> ()
-method GetCetificate() -> ()
+method GetCertificate() -> (chain: CertificateChain)
 method RenewCertificate() -> ()
