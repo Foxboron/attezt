@@ -1,11 +1,31 @@
 attezt
 ======
 
-`attezt` is an remote attestation server.
+`attezt` is a suite of remote attestation tools.
+
+It provides several components that allows Linux systems to have hardware backed
+device certificates over the `device-attest-01` ACME challenge. This is useful
+for environments where you want a strong device identity claim for things like
+x509 certificates used for mTLS setups.
+
+It currently supports `smallstep`, but also has it's own client implementation
+to administer device certificates.
+
+`atteztd` provides an Attestation Certificate Authority. It has an backend
+inventory API that is able to query a CMDB setup for device inventory and
+validate devices.
+
+`attezt-agent` provides a client agent that can serve the TPM certificate over a
+PKCS11 agent. This agent can be used for things like mTLS over browsers to
+certify authenticity.
+
+`attezt` is the program to manage `attezt-agent` and `atteztd` deployments. It
+allows you to check the enrollment of the device, provision certificates. Or
+administer the attestation certificate authority.
 
 This entire project is a WIP, unsure how feature complete it will be.
 
-## Usage
+## Setup with smallstep-ca
 
 `attezt` needs a small CA chain. Create this with `attezt`.
 
@@ -30,24 +50,89 @@ Add the provider into `step-ca`.
    --attestation-roots ./root.pem
 ```
 
+
+## Issue device certificates with `step ca`
 To use this service with `step ca certificate` you can run something similar to the below thing.
 
 ```
-# Create an attestation certificate
-λ ~ » step ca certificate \
-  --attestation-ca-url 'http://127.0.0.1:8080' \
-  --attestation-uri 'tpmkms:name=ak;ak=true' \
-  --provisioner acme-da device-ak device-ak.key akcrt
-
 # Device certificate attested by ak
 λ » step ca certificate \
   --attestation-ca-url 'http://127.0.0.1:8080' \
-  --attestation-uri 'tpmkms:name=device-key;attest-by=ak' \
-  --provisioner acme-da device device device.crt
+  --attestation-uri 'tpmkms:name=device' \
+  --provisioner acme-da $(hostname) device.crt device.crt
 ```
 
 You can also renew a device certificate.
 
 ```
-λ » step ca renew --force --kms "tpmkms" ./device 'tpmkms:name=device'
+λ » step ca renew --force --kms "tpmkms" ./device.crt 'tpmkms:name=device'
+```
+
+## Issue with device certificates with `attezt-agent`
+
+Run the `attezt-agent`.
+```
+λ » sudo attezt-agent
+2026/03/15 16:33:55 p11kit-server is running
+2026/03/15 16:33:55 export P11_KIT_SERVER_ADDRESS=unix:path=/run/attezt/p11kit.socket
+2026/03/15 16:33:55 varlink service is running
+2026/03/15 16:33:55 Running at: /run/attezt/dev.attezt.Agent
+```
+
+
+`enroll` runs the enrollment procedure and acquires a device certificate.
+
+```
+λ » attezt status
+Status:
+    Endorsement Key: 2ea8888a4a935bfd418e6a700785655b0d2711abc52e71f1dbeeee03e9650396
+  Enrollment status: false
+
+λ » attezt enroll --acme "https://ca.home.arpa/acme/acme-da" --attestation "http://attezt.local:8080"
+
+λ » attezt status
+Status:
+    Endorsement Key: 2ea8888a4a935bfd418e6a700785655b0d2711abc52e71f1dbeeee03e9650396
+  Enrollment status: true
+        ACME Server: https://ca.home.arpa/acme/acme-da
+ Attestation Server: http://attezt.local:8080
+
+Certificate chain:
+X.509v3 TLS Certificate (RSA 2048) [Serial: 1433...6348]
+  Subject:     framework
+  Issuer:      Linderud Internal CA Intermediate CA
+  Provisioner: acme-da
+  Valid from:  2026-03-15T15:35:31Z
+          to:  2026-03-16T15:35:31Z
+
+X.509v3 Intermediate CA Certificate (ECDSA P-256) [Serial: 3050...3071]
+  Subject:     Linderud Internal CA Intermediate CA
+  Issuer:      Linderud Internal CA Root CA
+  Valid from:  2026-01-03T15:15:45Z
+          to:  2036-01-01T15:15:45Z
+```
+
+To make this visible for a browser, you need to add the `p11-kit-client.so` into
+the nss database, and make a browser policy for the domain.
+
+```
+λ » modutil -dbdir ~/.pki/nssdb -add attezt -libfile /usr/lib/pkcs11/p11-kit-client.so
+λ » export P11_KIT_SERVER_ADDRESS=unix:path=/run/attezt/p11kit.sock
+```
+
+Example policy.
+
+```
+# cat /etc/chromium/policies/managed/mtls.json
+{
+  "AutoSelectCertificateForUrls": [
+    "{\"pattern\":\"https://example.com\",\"filter\":{\"ISSUER\":{\"O\":\"My Internal CA\"}}}"
+  ]
+}
+```
+
+Start chromium and enjoy your new client certificates.
+
+```
+λ » chromium
 ```
