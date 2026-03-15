@@ -30,7 +30,13 @@ import (
 )
 
 type ObjectHandler struct {
-	objects []p11kit.Object
+	objects        []p11kit.Object
+	deviceCrt      *x509.Certificate
+	intermdiateCrt *x509.Certificate
+}
+
+func (o *ObjectHandler) HasCertificate() bool {
+	return len(o.objects) != 0 && (o.deviceCrt != nil && o.intermdiateCrt != nil)
 }
 
 func (o *ObjectHandler) GetObjects() ([]p11kit.Object, error) {
@@ -39,6 +45,10 @@ func (o *ObjectHandler) GetObjects() ([]p11kit.Object, error) {
 		return nil, fmt.Errorf("no certificate objects")
 	}
 	return o.objects, nil
+}
+
+func (o *ObjectHandler) Reset() {
+	o.objects = []p11kit.Object{}
 }
 
 func (o *ObjectHandler) SetTPMKey(signer crypto.Signer, cert *x509.Certificate) error {
@@ -59,6 +69,9 @@ func (o *ObjectHandler) SetTPMKey(signer crypto.Signer, cert *x509.Certificate) 
 	certobj.SetLabel("Attezt TPM Certificate")
 
 	o.objects = append(o.objects, certobj, obj)
+
+	o.deviceCrt = cert
+
 	return nil
 }
 
@@ -80,6 +93,8 @@ func (o *ObjectHandler) SetIntermediate(cert *x509.Certificate) error {
 	certobj.SetLabel("Intermediate Certificate")
 
 	o.objects = append(o.objects, certobj, obj)
+
+	o.intermdiateCrt = cert
 	return nil
 }
 
@@ -265,6 +280,9 @@ func (a *AtteztAgent) GetCertificate() error {
 	if err := a.SaveKeys(key.Bytes(), certChains[0].ChainPEM); err != nil {
 		return err
 	}
+
+	// Reset any objects before we enroll new ones
+	a.obj.Reset()
 
 	// Set client certificate
 	cbytes := certChains[0]
