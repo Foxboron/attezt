@@ -5,8 +5,12 @@ import (
 	"encoding/base64"
 	"fmt"
 	"log"
+	"net/http"
+	"net/url"
 
 	"github.com/foxboron/attezt/internal/agent/devatteztagent"
+	"github.com/foxboron/attezt/internal/attest"
+	"github.com/google/go-tpm/tpm2"
 	"github.com/varlink/go/varlink"
 )
 
@@ -43,15 +47,43 @@ func NewAgentVarlinkHandler(agent *AtteztAgent) *devatteztagent.VarlinkInterface
 func (a *AgentVarlinkHandler) GetStatus(ctx context.Context, c devatteztagent.VarlinkCall) error {
 	log.Println("called getstatus")
 	var ret devatteztagent.Status
-	ret.Ek = "12345"
-	ret.Enrolled = false
-	ret.AcmeServer = "test"
-	ret.AttestationServer = "test12"
+	cert, err := attest.GetEKCert(a.agent.rwc, tpm2.TPMAlgRSA)
+	if err != nil {
+		log.Println("could not read endorsment certificate")
+		log.Println(err)
+		return c.ReplyError(ctx, "dev.attezt.Agent.Error", nil)
+	}
+	ret.Ek = fmt.Sprintf("%x", attest.HashPub(cert.PublicKey))
+	ret.Enrolled = a.agent.Enrolled()
+	if a.agent.Enrolled() {
+		ret.AcmeServer = a.agent.config.AcmeServer
+		ret.AttestationServer = a.agent.config.AttestationServer
+	}
+
 	return c.ReplyGetStatus(ctx, ret)
 }
 
-func (a *AgentVarlinkHandler) EnrollDevice(ctx context.Context, c devatteztagent.VarlinkCall) error {
+func (a *AgentVarlinkHandler) EnrollDevice(ctx context.Context, c devatteztagent.VarlinkCall, e devatteztagent.Enrollment) error {
 	log.Println("called enrolldevice")
+	u, _ := url.JoinPath(e.AttestationCA, "attest")
+	resp, err := http.Get(u)
+	if err != nil {
+		log.Println("could not reach attesation ca")
+		log.Println(err)
+		return c.ReplyError(ctx, "dev.attezt.Agent.Error", nil)
+	}
+	resp.Body.Close()
+
+	u, _ = url.JoinPath(e.AcmeServer, "directory")
+	resp, err = http.Get(u)
+	if err != nil {
+		log.Println("could not reach acme ca")
+		log.Println(err)
+		return c.ReplyError(ctx, "dev.attezt.Agent.Error", nil)
+	}
+	resp.Body.Close()
+
+	a.agent.SetConfig(NewAgentConfig(e.AcmeServer, e.AttestationCA))
 	log.Println("acquiring a new certificate")
 	if err := a.agent.ProvisionCertificate(); err != nil {
 		log.Println(err)
@@ -65,6 +97,9 @@ func (a *AgentVarlinkHandler) EnrollDevice(ctx context.Context, c devatteztagent
 func (a *AgentVarlinkHandler) GetCertificate(ctx context.Context, c devatteztagent.VarlinkCall) error {
 	log.Println("called getcertificate")
 	var ret devatteztagent.CertificateChain
+	if !a.agent.Enrolled() {
+		return c.ReplyGetCertificate(ctx, ret)
+	}
 	device, intermediate := a.agent.GetCertificate()
 	ret.Device = base64.StdEncoding.EncodeToString(device.Raw)
 	ret.Intermediate = base64.StdEncoding.EncodeToString(intermediate.Raw)

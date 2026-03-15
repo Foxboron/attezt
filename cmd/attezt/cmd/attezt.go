@@ -8,16 +8,18 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/base64"
 	"encoding/pem"
 	"fmt"
 	"log"
 	"os"
 	"time"
 
-	"github.com/foxboron/attezt/internal/attest"
 	aacme "github.com/foxboron/attezt/internal/acme"
 	"github.com/foxboron/attezt/internal/agent"
 	"github.com/foxboron/attezt/internal/agent/devatteztagent"
+	"github.com/foxboron/attezt/internal/attest"
+	"github.com/smallstep/certinfo"
 
 	"github.com/foxboron/attezt/internal/certs"
 	tt "github.com/foxboron/attezt/internal/transport"
@@ -391,7 +393,8 @@ var (
 			caCmdNew,
 			certificateCmdNew,
 			{
-				Name: "status",
+				Name:  "status",
+				Usage: "status of the agent",
 				Action: func(ctx context.Context, cmd *cli.Command) error {
 					conn, err := agent.NewClient(cmd.String("varlink"))
 					if err != nil {
@@ -405,21 +408,80 @@ var (
 					fmt.Printf("Status:\n")
 					fmt.Printf("    Endorsement Key: %s\n", status.Ek)
 					fmt.Printf("  Enrollment status: %t\n", status.Enrolled)
+
+					if !status.Enrolled {
+						return nil
+					}
+
 					fmt.Printf("        ACME Server: %s\n", status.AcmeServer)
 					fmt.Printf(" Attestation Server: %s\n", status.AttestationServer)
+
+					fmt.Println()
+					fmt.Printf("Certificate chain:\n")
+
+					// TODO: Format this better
+					chain, err := devatteztagent.GetCertificate().Call(ctx, conn)
+					if err != nil {
+						return err
+					}
+
+					certb, err := base64.StdEncoding.DecodeString(chain.Device)
+					if err != nil {
+						return err
+					}
+					devcrt, err := x509.ParseCertificate(certb)
+					if err != nil {
+						return err
+					}
+					s, err := certinfo.CertificateShortText(devcrt)
+					if err != nil {
+						return err
+					}
+					fmt.Print(s)
+					certb, err = base64.StdEncoding.DecodeString(chain.Intermediate)
+					if err != nil {
+						return err
+					}
+					icert, err := x509.ParseCertificate(certb)
+					if err != nil {
+						return err
+					}
+					fmt.Println()
+					s, err = certinfo.CertificateShortText(icert)
+					if err != nil {
+						return err
+					}
+					fmt.Print(s)
+
 					return nil
 				},
 			},
 			{
 				Name: "enroll",
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:  "acme",
+						Value: "",
+						Usage: "URL to the acme server",
+					},
+					&cli.StringFlag{
+						Name:  "attestation",
+						Value: "",
+						Usage: "URL to the attestation server",
+					},
+				},
+				Usage: "enroll the agent towards an ACME and attestation server",
 				Action: func(ctx context.Context, cmd *cli.Command) error {
 					conn, err := agent.NewClient(cmd.String("varlink"))
 					if err != nil {
 						return err
 					}
 					defer conn.Close()
-					err = devatteztagent.EnrollDevice().Call(ctx, conn)
-					if err != nil {
+
+					if err = devatteztagent.EnrollDevice().Call(ctx, conn, devatteztagent.Enrollment{
+						AcmeServer:    cmd.String("acme"),
+						AttestationCA: cmd.String("attestation"),
+					}); err != nil {
 						return err
 					}
 					return nil

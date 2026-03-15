@@ -16,6 +16,11 @@ type Status struct {
 	AttestationServer string `json:"attestationServer"`
 }
 
+type Enrollment struct {
+	AcmeServer    string `json:"acmeServer"`
+	AttestationCA string `json:"attestationCA"`
+}
+
 type CertificateChain struct {
 	Device       string `json:"device"`
 	Intermediate string `json:"intermediate"`
@@ -86,8 +91,8 @@ type EnrollDevice_methods struct{}
 
 func EnrollDevice() EnrollDevice_methods { return EnrollDevice_methods{} }
 
-func (m EnrollDevice_methods) Call(ctx context.Context, c *varlink.Connection) (err_ error) {
-	receive, err_ := m.Send(ctx, c, 0)
+func (m EnrollDevice_methods) Call(ctx context.Context, c *varlink.Connection, enrollment_in_ Enrollment) (err_ error) {
+	receive, err_ := m.Send(ctx, c, 0, enrollment_in_)
 	if err_ != nil {
 		return
 	}
@@ -95,8 +100,12 @@ func (m EnrollDevice_methods) Call(ctx context.Context, c *varlink.Connection) (
 	return
 }
 
-func (m EnrollDevice_methods) Send(ctx context.Context, c *varlink.Connection, flags uint64) (func(ctx context.Context) (uint64, error), error) {
-	receive, err := c.Send(ctx, "dev.attezt.Agent.EnrollDevice", nil, flags)
+func (m EnrollDevice_methods) Send(ctx context.Context, c *varlink.Connection, flags uint64, enrollment_in_ Enrollment) (func(ctx context.Context) (uint64, error), error) {
+	var in struct {
+		Enrollment Enrollment `json:"enrollment"`
+	}
+	in.Enrollment = enrollment_in_
+	receive, err := c.Send(ctx, "dev.attezt.Agent.EnrollDevice", in, flags)
 	if err != nil {
 		return nil, err
 	}
@@ -110,8 +119,12 @@ func (m EnrollDevice_methods) Send(ctx context.Context, c *varlink.Connection, f
 	}, nil
 }
 
-func (m EnrollDevice_methods) Upgrade(ctx context.Context, c *varlink.Connection) (func(ctx context.Context) (flags uint64, conn varlink.ReadWriterContext, err_ error), error) {
-	receive, err := c.Upgrade(ctx, "dev.attezt.Agent.EnrollDevice", nil)
+func (m EnrollDevice_methods) Upgrade(ctx context.Context, c *varlink.Connection, enrollment_in_ Enrollment) (func(ctx context.Context) (flags uint64, conn varlink.ReadWriterContext, err_ error), error) {
+	var in struct {
+		Enrollment Enrollment `json:"enrollment"`
+	}
+	in.Enrollment = enrollment_in_
+	receive, err := c.Upgrade(ctx, "dev.attezt.Agent.EnrollDevice", in)
 	if err != nil {
 		return nil, err
 	}
@@ -223,7 +236,7 @@ func (m RenewCertificate_methods) Upgrade(ctx context.Context, c *varlink.Connec
 
 type devatteztagentInterface interface {
 	GetStatus(ctx context.Context, c VarlinkCall) error
-	EnrollDevice(ctx context.Context, c VarlinkCall) error
+	EnrollDevice(ctx context.Context, c VarlinkCall, enrollment_ Enrollment) error
 	GetCertificate(ctx context.Context, c VarlinkCall) error
 	RenewCertificate(ctx context.Context, c VarlinkCall) error
 }
@@ -266,7 +279,7 @@ func (s *VarlinkInterface) GetStatus(ctx context.Context, c VarlinkCall) error {
 	return c.ReplyMethodNotImplemented(ctx, "dev.attezt.Agent.GetStatus")
 }
 
-func (s *VarlinkInterface) EnrollDevice(ctx context.Context, c VarlinkCall) error {
+func (s *VarlinkInterface) EnrollDevice(ctx context.Context, c VarlinkCall, enrollment_ Enrollment) error {
 	return c.ReplyMethodNotImplemented(ctx, "dev.attezt.Agent.EnrollDevice")
 }
 
@@ -286,7 +299,14 @@ func (s *VarlinkInterface) VarlinkDispatch(ctx context.Context, call varlink.Cal
 		return s.devatteztagentInterface.GetStatus(ctx, VarlinkCall{call})
 
 	case "EnrollDevice":
-		return s.devatteztagentInterface.EnrollDevice(ctx, VarlinkCall{call})
+		var in struct {
+			Enrollment Enrollment `json:"enrollment"`
+		}
+		err := call.GetParameters(&in)
+		if err != nil {
+			return call.ReplyInvalidParameter(ctx, "parameters")
+		}
+		return s.devatteztagentInterface.EnrollDevice(ctx, VarlinkCall{call}, in.Enrollment)
 
 	case "GetCertificate":
 		return s.devatteztagentInterface.GetCertificate(ctx, VarlinkCall{call})
@@ -317,13 +337,18 @@ type Status (
   attestationServer: string
 )
 
+type Enrollment (
+  acmeServer: string,
+  attestationCA: string
+)
+
 type CertificateChain (
   device: string,
   intermediate: string
 ) 
 
 method GetStatus() -> (status: Status)
-method EnrollDevice() -> ()
+method EnrollDevice(enrollment: Enrollment) -> ()
 method GetCertificate() -> (chain: CertificateChain)
 method RenewCertificate() -> ()
 `

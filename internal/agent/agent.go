@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/url"
 	"os"
 	"sync"
 	"time"
@@ -109,9 +110,50 @@ type AtteztAgent struct {
 	obj      *ObjectHandler
 	p11      net.Listener
 	wg       *sync.WaitGroup
-	statedir string
-	// atteztServer string
-	// acmeServer   string
+	statedir *os.Root
+	config   *AgentConfig
+}
+
+func (a *AtteztAgent) SetConfig(conf *AgentConfig) error {
+	a.config = conf
+	w, err := a.statedir.OpenFile("config.json", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+	if err != nil {
+		return err
+	}
+	defer w.Close()
+	return a.config.Save(w)
+}
+
+func (a *AtteztAgent) LoadConfig() error {
+	r, err := a.statedir.Open("config.json")
+	if err != nil {
+		// Don't hard fail on missing config file
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	conf, err := ReadAgentConfig(r)
+	if err != nil {
+		return err
+	}
+	a.config = conf
+	return nil
+}
+
+func (a *AtteztAgent) Enrolled() bool {
+	if a.config == nil {
+		return false
+	}
+	if !a.HasDeviceCertificate() {
+		return false
+	}
+	return true
+}
+
+func (a *AtteztAgent) HasDeviceCertificate() bool {
+	// Delegate to the objecthandle
+	return a.obj.HasCertificate()
 }
 
 func (a *AtteztAgent) Close() error {
@@ -132,8 +174,11 @@ func (a *AtteztAgent) ProvisionCertificate() error {
 	}
 
 	// TODO: Make this configurable
-	atteztServer := "http://attezt.local:8080"
-	acmeServer := "https://ca.home.arpa/acme/acme-da/directory"
+	atteztServer := a.config.AttestationServer
+	acmeServer, err := url.JoinPath(a.config.AcmeServer, "directory")
+	if err != nil {
+		return err
+	}
 
 	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -312,6 +357,12 @@ func (a *AtteztAgent) ProvisionCertificate() error {
 }
 
 func NewAtteztAgent(ctx context.Context, rwc transport.TPMCloser, varlink, p11sock, statedir string) (*AtteztAgent, error) {
+	// Try open early
+	statedirroot, err := os.OpenRoot(statedir)
+	if err != nil {
+		return nil, err
+	}
+
 	var wg sync.WaitGroup
 	objhandler := &ObjectHandler{}
 
@@ -364,8 +415,13 @@ func NewAtteztAgent(ctx context.Context, rwc transport.TPMCloser, varlink, p11so
 		ctx:      ctx,
 		p11:      l,
 		wg:       &wg,
-		statedir: statedir,
+		statedir: statedirroot,
 		obj:      objhandler,
+	}
+
+	// Load config early
+	if err := agent.LoadConfig(); err != nil {
+		return nil, err
 	}
 
 	vs, err := NewVarlinkServer(ctx, agent)
