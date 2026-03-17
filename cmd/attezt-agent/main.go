@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"github.com/foxboron/attezt/internal/agent"
@@ -14,6 +15,23 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
+func getEnv(key, def string) string {
+	s, ok := os.LookupEnv(key)
+	if !ok {
+		return def
+	}
+	return s
+}
+
+func defaultPath(key, def, v string) string {
+	// filepath.Abs(path string)
+	abs, err := filepath.Abs(filepath.Join(getEnv(key, def), v))
+	if err != nil {
+		panic("invalid path")
+	}
+	return abs
+}
+
 // Main command
 var cmd = &cli.Command{
 	Name:    "attezt-agent",
@@ -21,18 +39,18 @@ var cmd = &cli.Command{
 	Flags: []cli.Flag{
 		&cli.StringFlag{
 			Name:  "varlink",
-			Value: "/run/attezt/dev.attezt.Agent",
+			Value: defaultPath("RUNTIME_DIRECTORY", "/run", "attezt/dev.Attezt.Agent"),
 			Usage: "address for varlink socket",
 		},
 		&cli.StringFlag{
 			Name:  "p11kit",
-			Value: "/run/attezt/p11kit.socket",
+			Value: defaultPath("RUNTIME_DIRECTORY", "/run", "attezt/p11kit.sock"),
 			Usage: "address for p11kit socket",
 		},
 		&cli.StringFlag{
 			Name:  "state-dir",
-			Value: "/var/lib/attezt",
-			Usage: "state location for attezt",
+			Value: defaultPath("STATE_DIRECTORY", "/var/lib", "attezt"),
+			Usage: "state directory for attezt",
 		},
 	},
 	Action: func(ctx context.Context, cmd *cli.Command) error {
