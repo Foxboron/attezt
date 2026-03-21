@@ -389,6 +389,7 @@ func NewAtteztAgent(ctx context.Context, rwc transport.TPMCloser, varlink, p11so
 	if err != nil {
 		return nil, err
 	}
+	l.(*net.UnixListener).SetUnlinkOnClose(true)
 	wg.Go(func() {
 		for {
 			select {

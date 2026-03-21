@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"path"
 	"path/filepath"
 	"syscall"
 
@@ -54,6 +55,15 @@ var cmd = &cli.Command{
 		},
 	},
 	Action: func(ctx context.Context, cmd *cli.Command) error {
+		// Create the directories we need if they don't exist
+		if err := os.MkdirAll(path.Dir(cmd.String("varlink")), 0o644); err != nil {
+			return err
+		}
+
+		if err := os.MkdirAll(cmd.String("state-dir"), 0o644); err != nil {
+			return err
+		}
+
 		rwc, err := linuxtpm.Open("/dev/tpmrm0")
 		if err != nil {
 			return err
