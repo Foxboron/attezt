@@ -40,7 +40,7 @@ var cmd = &cli.Command{
 	Flags: []cli.Flag{
 		&cli.StringFlag{
 			Name:  "varlink",
-			Value: defaultPath("RUNTIME_DIRECTORY", "/run", "attezt/dev.Attezt.Agent"),
+			Value: defaultPath("RUNTIME_DIRECTORY", "/run", "attezt/dev.attezt.Agent"),
 			Usage: "address for varlink socket",
 		},
 		&cli.StringFlag{
