@@ -4,6 +4,7 @@ package certs
 // This is mostly just to bootstrap something to test out this entire thing.
 
 import (
+	"bytes"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
@@ -15,6 +16,7 @@ import (
 	"io"
 	"math/big"
 	"os"
+	"path/filepath"
 	"time"
 )
 
@@ -74,7 +76,13 @@ func ReadCertificates(priv, pub []byte) (*Certificate, error) {
 
 func (c *Certificate) readPub(b []byte) error {
 	block, _ := pem.Decode(b)
+	if block == nil {
+		return fmt.Errorf("invalid certificate PEM")
+	}
 	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return err
+	}
 	c.cert = cert
 	c.certBytes = cert.Raw
 	return err
@@ -82,6 +90,9 @@ func (c *Certificate) readPub(b []byte) error {
 
 func (c *Certificate) readPriv(b []byte) error {
 	block, _ := pem.Decode(b)
+	if block == nil {
+		return fmt.Errorf("invalid private key PEM")
+	}
 	key, err := x509.ParsePKCS8PrivateKey(block.Bytes)
 	if err != nil {
 		return err
@@ -180,35 +191,46 @@ type CertificateChain struct {
 	intermediate *Certificate
 }
 
-func ReadChainFromDir(_ string) (*CertificateChain, error) {
-	rootKey, err := os.ReadFile("root_ca.key")
-	if err != nil {
-		return nil, fmt.Errorf("railed reading root_ca.key: %v", err)
+func ReadChainWithSigner(rootPath, intermediatePath string, signer crypto.Signer) (*CertificateChain, error) {
+	root, intermediate := &Certificate{}, &Certificate{}
+	for path, cert := range map[string]*Certificate{rootPath: root, intermediatePath: intermediate} {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil, err
+		}
+		if err := cert.readPub(data); err != nil {
+			return nil, err
+		}
 	}
-	rootcrt, err := os.ReadFile("root_ca.pem")
-	if err != nil {
-		return nil, fmt.Errorf("railed reading root_ca.pem: %v", err)
+	if root.cert == nil || intermediate.cert == nil || !intermediate.cert.IsCA || intermediate.cert.KeyUsage&x509.KeyUsageCertSign == 0 || signer == nil {
+		return nil, fmt.Errorf("root, intermediate CA and signer are required")
 	}
-	rootCert, err := ReadCertificates(rootKey, rootcrt)
+	spki, err := x509.MarshalPKIXPublicKey(signer.Public())
 	if err != nil {
-		return nil, fmt.Errorf("failed ReadCertificate for root cert: %v", err)
+		return nil, err
 	}
-	interkey, err := os.ReadFile("intermediate_ca.key")
+	if !bytes.Equal(spki, intermediate.cert.RawSubjectPublicKeyInfo) {
+		return nil, fmt.Errorf("signer does not match intermediate certificate")
+	}
+	roots := x509.NewCertPool()
+	roots.AddCert(root.cert)
+	if _, err := intermediate.cert.Verify(x509.VerifyOptions{Roots: roots, KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageAny}}); err != nil {
+		return nil, fmt.Errorf("invalid intermediate chain: %w", err)
+	}
+	intermediate.signer = &Signer{signer}
+	return &CertificateChain{root: root, intermediate: intermediate}, nil
+}
+
+func ReadChainFromDir(directory string) (*CertificateChain, error) {
+	interkey, err := os.ReadFile(filepath.Join(directory, "intermediate_ca.key"))
 	if err != nil {
 		return nil, fmt.Errorf("railed reading intermediate_ca.key: %v", err)
 	}
-	intercrt, err := os.ReadFile("intermediate_ca.pem")
-	if err != nil {
-		return nil, fmt.Errorf("railed reading intermediate_ca.pem: %v", err)
+	intermediate := &Certificate{}
+	if err := intermediate.readPriv(interkey); err != nil {
+		return nil, err
 	}
-	interCert, err := ReadCertificates(interkey, intercrt)
-	if err != nil {
-		return nil, fmt.Errorf("failed ReadCertificate for intermediate ca cert: %v", err)
-	}
-	return &CertificateChain{
-		root:         rootCert,
-		intermediate: interCert,
-	}, nil
+	return ReadChainWithSigner(filepath.Join(directory, "root_ca.pem"), filepath.Join(directory, "intermediate_ca.pem"), intermediate.signer)
 }
 
 func NewCA() *CertificateChain {
@@ -221,7 +243,20 @@ func NewCA() *CertificateChain {
 }
 
 func (c *CertificateChain) Sign(cert *x509.Certificate, pub crypto.PublicKey) ([]byte, error) {
-	return x509.CreateCertificate(rand.Reader, cert, c.intermediate.cert, pub, c.intermediate.signer)
+	if cert.IsCA || cert.KeyUsage&x509.KeyUsageCertSign != 0 {
+		return nil, fmt.Errorf("only leaf certificates may be issued")
+	}
+	template := *cert
+	if template.NotBefore.Before(c.intermediate.cert.NotBefore) {
+		template.NotBefore = c.intermediate.cert.NotBefore
+	}
+	if template.NotAfter.After(c.intermediate.cert.NotAfter) {
+		template.NotAfter = c.intermediate.cert.NotAfter
+	}
+	if !template.NotAfter.After(time.Now()) || !template.NotAfter.After(template.NotBefore) {
+		return nil, fmt.Errorf("issuer or requested certificate validity has expired")
+	}
+	return x509.CreateCertificate(rand.Reader, &template, c.intermediate.cert, pub, c.intermediate.signer)
 }
 
 func (c *CertificateChain) Verify(cert *x509.Certificate) ([][]*x509.Certificate, error) {

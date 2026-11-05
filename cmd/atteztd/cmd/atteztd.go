@@ -15,12 +15,19 @@ import (
 	"github.com/foxboron/attezt/internal/truststore"
 	"github.com/foxboron/attezt/internal/varlink"
 	"github.com/urfave/cli/v3"
+	"go.step.sm/crypto/kms"
+	"go.step.sm/crypto/kms/apiv1"
+	_ "go.step.sm/crypto/kms/tpmkms"
 )
 
 var cmd = &cli.Command{
 	Name:    "atteztd",
 	Version: "v0.0.0",
 	Flags: []cli.Flag{
+		&cli.StringFlag{Name: "root", Value: "root_ca.pem", Usage: "root CA certificate PEM file"},
+		&cli.StringFlag{Name: "intermediate", Value: "intermediate_ca.pem", Usage: "intermediate CA certificate PEM file"},
+		&cli.StringFlag{Name: "key", Value: "intermediate_ca.key", Usage: "intermediate private key PEM file or KMS key URI"},
+		&cli.StringFlag{Name: "kms", Usage: "optional KMS URI (supports tpmkms)"},
 		&cli.StringFlag{
 			Name:  "varlink",
 			Value: "/run/attezt/dev.attezt.Server",
@@ -64,15 +71,24 @@ var cmd = &cli.Command{
 			ts = truststore.NewTrustStore(true)
 		}
 
-		return run(ctx, cmd.String("varlink"), ts, backend)
+		keyManager, err := kms.New(ctx, apiv1.Options{URI: cmd.String("kms")})
+		if err != nil {
+			return err
+		}
+		defer keyManager.Close()
+		signer, err := keyManager.CreateSigner(&apiv1.CreateSignerRequest{SigningKey: cmd.String("key")})
+		if err != nil {
+			return fmt.Errorf("open intermediate signing key: %w", err)
+		}
+		chain, err := certs.ReadChainWithSigner(cmd.String("root"), cmd.String("intermediate"), signer)
+		if err != nil {
+			return err
+		}
+		return run(ctx, cmd.String("varlink"), chain, ts, backend)
 	},
 }
 
-func run(ctx context.Context, vsaddr string, ts *truststore.TrustStore, backend inventory.Inventory) error {
-	chain, err := certs.ReadChainFromDir(".")
-	if err != nil {
-		return fmt.Errorf("failed reading certs: %v", err)
-	}
+func run(ctx context.Context, vsaddr string, chain *certs.CertificateChain, ts *truststore.TrustStore, backend inventory.Inventory) error {
 	as := server.NewTPMAttestServer(chain, ts, backend)
 
 	srv := &http.Server{

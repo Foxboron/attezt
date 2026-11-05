@@ -39,6 +39,27 @@ This entire project is a WIP, unsure how feature complete it will be.
 2025/12/22 23:13:31 HTTP server listening on :8080
 ```
 
+To use an existing CA, provide `--root`, `--intermediate`, and `--key`.
+The defaults remain `root_ca.pem`, `intermediate_ca.pem`, and
+`intermediate_ca.key`. The daemon only needs the root certificate; keep the root
+private key offline. The signing key must match the intermediate certificate.
+
+An existing TPM key can be used through Smallstep's `tpmkms` provider:
+
+```sh
+atteztd --root /etc/attezt/root.pem \
+  --intermediate /etc/attezt/intermediate.pem \
+  --kms 'tpmkms:device=/dev/tpmrm0;storage-directory=/var/lib/attezt/tpm' \
+  --key 'tpmkms:name=attestation-intermediate'
+```
+
+The key must already exist; the daemon does not create it. Grant the daemon
+access to the TPM device and read access to the TPM object storage. It issues
+leaf certificates and limits their validity to the intermediate's lifetime.
+
+The TPM signer regression test uses a simulator and requires a C compiler and
+OpenSSL development headers: `go test -tags tpmsimulator ./internal/certs`.
+
 Add the provider into `step-ca`.
 
 ```
